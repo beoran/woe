@@ -1,0 +1,49 @@
+
+CFLAGS = -I /usr/local/include -I ./include -Wall -Wno-unused 
+
+ifeq (@(RELEASE),y)
+  CFLAGS += -Os
+else
+  CFLAGS += -g
+endif
+
+# Source files of EKQ
+SRC_FILES  = src/libtelnet.c
+# SRC_FILES += src/tr.c
+
+TEST_FILES = test/test_model.c
+          += test/test_objfile.c
+
+MAIN_FILE  = src/main.c
+
+
+MRUBY_LIBS=-lmruby_core -lmruby
+
+LDFLAGS = -L /usr/local/lib $(MRUBY_LIBS) -lm
+
+!cc = |> ^ CC %f ^ gcc  $(CFLAGS) -c %f -o %o |>
+!ld = |> gcc %f $(LDFLAGS) -o %o |> 
+
+: foreach $(SRC_FILES) |> !cc |>  build/obj/%B.o {objects}
+: $(MAIN_FILE) |> !cc |>  build/main/%B.o {main}
+: {objects} {main} |> !ld |> bin/woe-server
+
+!ld_test = |> gcc %f $(LDFLAGS) -o %o |> 
+
+# Compile and link tests. Vexingly foreach seems of no avail for the 
+# linking step.
+#
+# : foreach $(TEST_FILES) |> !cc |>  build/test/%B.o {test_objects}
+# : {objects} build/test/test_model.o |> !ld |> bin/test_model
+
+# : test/test_objfile.c |> !cc |>  build/test/%B.o {test_objects}
+# : {objects} build/test/test_objfile.o |> !ld |> bin/test_objfile
+
+# : foreach $(TEST_FILES) |> echo %f |>
+
+
+# ^ LINK %f ^
+
+
+
+
