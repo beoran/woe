@@ -1,5 +1,5 @@
 
-CFLAGS = -I /usr/local/include -I ./include -Wall -Wno-unused 
+CFLAGS = -I /usr/local/include -I ./include -Wall --std=c99 -Wno-unused
 
 ifeq (@(RELEASE),y)
   CFLAGS += -Os
@@ -8,7 +8,20 @@ else
 endif
 
 # Source files of EKQ
-SRC_FILES  = src/libtelnet.c
+
+SRC_FILES   = src/libtelnet.c
+SRC_FILES  += src/config.c
+SRC_FILES  += src/esh.c
+SRC_FILES  += src/client.c
+SRC_FILES  += src/mem.c
+SRC_FILES  += src/every.c
+SRC_FILES  += src/dynar.c
+SRC_FILES  += src/monolog.c
+SRC_FILES  += src/server.c
+SRC_FILES  += src/rh.c
+SRC_FILES  += src/toruby.c
+
+
 # SRC_FILES += src/tr.c
 
 TEST_FILES = test/test_model.c
@@ -16,10 +29,10 @@ TEST_FILES = test/test_model.c
 
 MAIN_FILE  = src/main.c
 
+MRUBY_LIBS = -lmruby_core -lmruby
+WOE_LIBS   = $(MRUBY_LIBS) -lrt -lm
 
-MRUBY_LIBS=-lmruby_core -lmruby
-
-LDFLAGS = -L /usr/local/lib $(MRUBY_LIBS) -lm
+LDFLAGS = -L /usr/local/lib $(WOE_LIBS)
 
 !cc = |> ^ CC %f ^ gcc  $(CFLAGS) -c %f -o %o |>
 !ld = |> gcc %f $(LDFLAGS) -o %o |> 
