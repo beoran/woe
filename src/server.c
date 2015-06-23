@@ -121,17 +121,47 @@ static void woe_event_handler(telnet_t *telnet, telnet_event_t *ev, void *user_d
     break;
     
   case TELNET_EV_WONT:  
-    woe_client_negotiate(client, TELNET_WILL, ev->neg.telopt);
+    woe_client_negotiate(client, TELNET_WONT, ev->neg.telopt);
+    break;
+    
+  case TELNET_EV_IAC:
+    woe_client_iac(client, ev->iac.cmd);
+    break;
+    
+  case TELNET_EV_SUBNEGOTIATION:
+    woe_client_subnegotiate(client, ev->sub.buffer, ev->sub.size, ev->sub.telopt);
+    break; 
+
+  case TELNET_EV_TTYPE:
+    woe_client_ttype(client, ev->ttype.cmd, ev->ttype.name);
+    break;
+    
+  case TELNET_EV_COMPRESS: 
+    woe_client_compress(client, ev->compress.state);
     break;
   
-    
+  case TELNET_EV_ENVIRON:
+    woe_client_environ(client, ev->environ.cmd, ev->environ.values, ev->environ.size);
+    break;
+  
+  case TELNET_EV_MSSP:
+    woe_client_mssp(client, ev->mssp.values, ev->mssp.size);
+    break; 
+
+  /* warning */
+  case TELNET_EV_WARNING:  
+    LOG_WARNING("Telnet warning for client %d %s.\n", client->index, ev->error.msg);    
+    woe_client_warning(client, ev->error.errcode, ev->error.msg);
+    break;
+  
   /* error */
   case TELNET_EV_ERROR:  
-    LOG_ERROR("Telnet error for client.\n");    
+    LOG_ERROR("Telnet error for client %d %s.\n", client->index, ev->error.msg);    
+    woe_client_error(client, ev->error.errcode, ev->error.msg);
     woe_server_disconnect(client->server, client);
     break;
   
-  case TELNET_EV_ZMP
+  case TELNET_EV_ZMP:
     woe_client_zmp(client, ev->zmp.argc, ev->zmp.argv);
     break;
      

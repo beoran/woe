@@ -17,7 +17,7 @@ class Client
   end
   
   def self.add(client_id)
-    @clients ||= {}
+    @clients2 ||= {}
     @clients[client_id] = Client.new(client_id)
   end
   
@@ -76,6 +76,14 @@ def woe_on_input(client_id, buf)
     p "Client #{client} #{client.id} ok."
     client.on_input(buf)
   end  
+end
+
+def woe_on_negotiate(client_id, how, option) 
+  p "Client #{client} #{client.id} negotiating."
+end
+
+def woe_on_subnegotiate(client_id, option, buffer) 
+  p "Client #{client} #{client.id} negotiating."
 end
 
 

@@ -50,9 +50,18 @@ struct woe_client {
 
 int woe_clients_max(void);
 
+int woe_client_iac(struct woe_client * cli, int cmd);
 int woe_client_input(struct woe_client * cli, const char * buffer, size_t size);
-int woe_client_zmp(struct woe_client * cli, int argc, char *argv[]);
-
+int woe_client_zmp(struct woe_client * cli, int argc, const char *argv[]);
+int woe_client_negotiate(struct woe_client * cli, int how, int option);
+int woe_client_subnegotiate(struct woe_client * cli, const char * buf, int len, int telopt);
+int woe_client_ttype(struct woe_client * cli, int cmd, const char * name);
+int woe_client_error(struct woe_client * cli, int code, const char * msg);
+int woe_client_warning(struct woe_client * cli, int code, const char * msg);
+int woe_client_compress(struct woe_client * cli, int state);
+int woe_client_environ(struct woe_client * cli, int cmd, const struct telnet_environ_t *values, size_t size);
+int woe_client_mssp(struct woe_client * cli, const struct telnet_environ_t *values, size_t size);
+ 
 
 struct woe_client * 
 woe_client_new(struct woe_server * srv,  int index, int socket, 
