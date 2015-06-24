@@ -113,7 +113,7 @@ int woe_client_send(struct woe_client * client, const char *buffer, unsigned int
 
 int woe_client_input(struct woe_client * cli, const char *buffer, size_t size) {
   mrb_state * mrb;
-  LOG_NOTE("Received input for client %d", cli->index);
+  LOG_NOTE("Received input for client %d\n", cli->index);
   mrb = woe_server_get_mrb(cli->server);  
   if (mrb) {  
     rh_run_toplevel(mrb, "woe_on_input", "is", cli->index, buffer, size);
@@ -124,7 +124,7 @@ int woe_client_input(struct woe_client * cli, const char *buffer, size_t size) {
 int woe_client_zmp(struct woe_client * cli, int argc, const char *argv[]) {
   unsigned int i;
   mrb_state * mrb;
-  LOG_NOTE("Received ZMP reply for client %d", cli->index);
+  LOG_NOTE("Received ZMP reply for client %d\n", cli->index);
   mrb = woe_server_get_mrb(cli->server);  
   if (mrb) {  
     rh_run_toplevel(mrb, "woe_begin_zmp", "ii", cli->index, argc);
@@ -138,7 +138,7 @@ int woe_client_zmp(struct woe_client * cli, int argc, const char *argv[]) {
 
 int woe_client_iac(struct woe_client * cli, int cmd) {
   mrb_state * mrb;
-  LOG_NOTE("Received iac for client %d %d", cli->index, cmd);
+  LOG_NOTE("Received iac for client %d %d\n", cli->index, cmd);
   mrb = woe_server_get_mrb(cli->server);  
   if (mrb) {  
     rh_run_toplevel(mrb, "woe_on_iac", "i", cli->index, cmd);
@@ -149,7 +149,7 @@ int woe_client_iac(struct woe_client * cli, int cmd) {
 
 int woe_client_negotiate(struct woe_client * cli, int how, int option) {
   mrb_state * mrb;
-  LOG_NOTE("Received negotiate for client %d %d %d", cli->index, how, option);
+  LOG_NOTE("Received negotiate for client %d %d %d\n", cli->index, how, option);
   mrb = woe_server_get_mrb(cli->server);  
   if (mrb) {  
     rh_run_toplevel(mrb, "woe_on_negotiate", "iii", cli->index, how, option);
@@ -159,7 +159,7 @@ int woe_client_negotiate(struct woe_client * cli, int how, int option) {
 
 int woe_client_subnegotiate(struct woe_client * cli, const char * buf, int len, int telopt) {
   mrb_state * mrb;
-  LOG_NOTE("Received subnegotiate for client %d", cli->index);
+  LOG_NOTE("Received subnegotiate for client %d\n", cli->index);
   mrb = woe_server_get_mrb(cli->server);  
   if (mrb) {  
     rh_run_toplevel(mrb, "woe_on_subnegotiate", "iis", cli->index, telopt, buf, len);
@@ -169,7 +169,7 @@ int woe_client_subnegotiate(struct woe_client * cli, const char * buf, int len, 
 
 int woe_client_ttype(struct woe_client * cli, int cmd, const char * name) {
   mrb_state * mrb;
-  LOG_NOTE("Received ttype for client %d %d %s", cli->index, cmd, name);
+  LOG_NOTE("Received ttype for client %d %d %s\n", cli->index, cmd, name);
   mrb = woe_server_get_mrb(cli->server);  
   if (mrb) {  
     rh_run_toplevel(mrb, "woe_on_ttype", "iz", cli->index, cmd, name);
@@ -180,10 +180,10 @@ int woe_client_ttype(struct woe_client * cli, int cmd, const char * name) {
 
 int woe_client_error(struct woe_client * cli, int code, const char * msg) {
   mrb_state * mrb;
-  LOG_NOTE("Received error for client %d %d %s", cli->index, code, msg);
+  LOG_NOTE("Received error for client %d %d %s\n", cli->index, code, msg);
   mrb = woe_server_get_mrb(cli->server);  
   if (mrb) {  
-    rh_run_toplevel(mrb, "woe_on_error", "iz", cli->index, code, msg);
+    rh_run_toplevel(mrb, "woe_on_error", "iz\n", cli->index, code, msg);
   }
   return 0;
 }
@@ -191,7 +191,7 @@ int woe_client_error(struct woe_client * cli, int code, const char * msg) {
 
 int woe_client_warning(struct woe_client * cli, int code, const char * msg) {
   mrb_state * mrb;
-  LOG_NOTE("Received warning for client %d %d %s", cli->index, code, msg);
+  LOG_NOTE("Received warning for client %d %d %s\n", cli->index, code, msg);
   mrb = woe_server_get_mrb(cli->server);  
   if (mrb) {  
     rh_run_toplevel(mrb, "woe_on_warning", "iz", cli->index, code, msg);
@@ -202,7 +202,7 @@ int woe_client_warning(struct woe_client * cli, int code, const char * msg) {
 
 int woe_client_compress(struct woe_client * cli, int state) {
   mrb_state * mrb;
-  LOG_NOTE("Received compress for client %d %d", cli->index, state);
+  LOG_NOTE("Received compress for client %d %d\n", cli->index, state);
   mrb = woe_server_get_mrb(cli->server);  
   if (mrb) {  
     rh_run_toplevel(mrb, "woe_on_compress", "ii", cli->index, state);
@@ -213,14 +213,14 @@ int woe_client_compress(struct woe_client * cli, int state) {
 int woe_client_environ(struct woe_client * cli, int cmd, const struct telnet_environ_t *values, size_t size) {
   int i;
   mrb_state * mrb;
-  LOG_NOTE("Received environ for client %d %d", cli->index, cmd);
+  LOG_NOTE("Received environ for client %d %d\n", cli->index, cmd);
   mrb = woe_server_get_mrb(cli->server);  
   if (mrb) {  
     rh_run_toplevel(mrb, "woe_begin_environ", "iii", cli->index, cmd, size);
     for (i=0; i < size; i++) {
       rh_run_toplevel(mrb, "woe_environ_arg", "iiizz", cli->index, i, values[i].type, values[i].var, values[i].value);
     }  
-   rh_run_toplevel(mrb, "woe_end_environ", "iii", cli->index, cmd, size);
+   rh_run_toplevel(mrb, "woe_finish_environ", "iii", cli->index, cmd, size);
   }
   return 0;
 }
@@ -228,14 +228,14 @@ int woe_client_environ(struct woe_client * cli, int cmd, const struct telnet_env
 int woe_client_mssp(struct woe_client * cli, const struct telnet_environ_t *values, size_t size) {
   int i;
   mrb_state * mrb;
-  LOG_NOTE("Received mssp for client %d", cli->index);
+  LOG_NOTE("Received mssp for client %d\n", cli->index);
   mrb = woe_server_get_mrb(cli->server);  
   if (mrb) {  
     rh_run_toplevel(mrb, "woe_begin_mssp", "ii", cli->index, size);
     for (i=0; i < size; i++) {
       rh_run_toplevel(mrb, "woe_mssp_arg", "iiizz", cli->index, i, values[i].type, values[i].var, values[i].value);
     }  
-   rh_run_toplevel(mrb, "woe_end_mssp", "iii", cli->index, size);
+   rh_run_toplevel(mrb, "woe_finish_mssp", "iii", cli->index, size);
   }
   return 0;
 }

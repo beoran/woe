@@ -12,6 +12,7 @@ endif
 SRC_FILES   = src/libtelnet.c
 SRC_FILES  += src/config.c
 SRC_FILES  += src/esh.c
+SRC_FILES  += src/timer.c
 SRC_FILES  += src/client.c
 SRC_FILES  += src/mem.c
 SRC_FILES  += src/every.c

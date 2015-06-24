@@ -29,71 +29,6 @@ mrb_obj_value(Data_Wrap_Struct(RUBY,                        \
   return mrb_float_value(mrb, TOCALL());                                       \
 }
 
-#define SCEGRA_ICALLER(NAME, TOCALL)                                           \
-  static mrb_value NAME(mrb_state * mrb, mrb_value self) {                     \
-  int index;                                                                   \
-  (void) self;                                                                 \
-  mrb_get_args(mrb, "i", &index);                                              \
-  return mrb_fixnum_value(TOCALL(index));                                      \
-}
-
-#define SCEGRA_BCALLER(NAME, TOCALL)                                           \
-  static mrb_value NAME(mrb_state * mrb, mrb_value self) {                     \
-  int index;                                                                   \
-  (void) self;                                                                 \
-  mrb_get_args(mrb, "i", &index);                                              \
-  return rh_bool_value(TOCALL(index));                                         \
-}
-
-
-#define SCEGRA_FCALLER(NAME, TOCALL)                                           \
-  static mrb_value NAME(mrb_state * mrb, mrb_value self) {                     \
-  mrb_int index;                                                               \
-  (void) self;                                                                 \
-  mrb_get_args(mrb, "i", &index);                                              \
-  return mrb_float_value(mrb, TOCALL(index));                                  \
-  }
-
-#define SCEGRA_ISETTER(NAME, TOCALL)                                           \
-  static mrb_value NAME(mrb_state * mrb, mrb_value self) {                     \
-  int index, value;                                                            \
-  (void) self;                                                                 \
-  mrb_get_args(mrb, "ii", &index, &value);                                     \
-  return mrb_fixnum_value(TOCALL(index, value));                               \
-}
-
-#define SCEGRA_BSETTER(NAME, TOCALL)                                           \
-  static mrb_value NAME(mrb_state * mrb, mrb_value self) {                     \
-  int index; mrb_value value;                                                  \
-  (void) self;                                                                 \
-  mrb_get_args(mrb, "io", &index, &value);                                     \
-  return mrb_fixnum_value(TOCALL(index, rh_tobool(value)));                    \
-}
-  
-#define SCEGRA_PSETTER(NAME, TOCALL)                                           \
-  static mrb_value NAME(mrb_state * mrb, mrb_value self) {                     \
-  int index, x, y;                                                             \
-  (void) self;                                                                 \
-  mrb_get_args(mrb, "iii", &index, &x, &y);                                    \
-  return mrb_fixnum_value(TOCALL(index, x, y));                                \
-}
-
-#define SCEGRA_CSETTER(NAME, TOCALL)                                           \
-  static mrb_value NAME(mrb_state * mrb, mrb_value self) {                     \
-  int index, r, g, b, a;                                                       \
-  (void) self;                                                                 \
-  mrb_get_args(mrb, "iiiii", &index, &r, &g, &b, &a);                          \
-  return mrb_fixnum_value(TOCALL(index, r, g, b, a));                          \
-}
-
-#define SCEGRA_FSETTER(NAME, TOCALL)                                           \
-  static mrb_value NAME(mrb_state * mrb, mrb_value self) {                     \
-  int index; mrb_float value;                                                  \
-  (void) self;                                                                 \
-  mrb_get_args(mrb, "if", &index, &value);                                     \
-  return mrb_fixnum_value(TOCALL(index, value));                               \
-}
-
 #define TR_WRAP_NOARG_BOOL(NAME, TOCALL)                                       \
 static mrb_value NAME(mrb_state * mrb, mrb_value self) {                       \
   (void) self; (void) mrb;                                                     \
@@ -176,32 +111,6 @@ static mrb_value NAME(mrb_state * mrb, mrb_value self) {                       \
 }
 
 
-#define TR_SPRITE_GET(SPRITE, STATE, SPRITEID)                                 \
-  SPRITE = state_sprite(STATE, SPRITEID);                                      \
-  if (!SPRITE) {                                                               \
-    return mrb_nil_value();                                                    \
-  }                                                                            
-
-#define TR_SPRITE_FUNC_INIT(SPRITE, STATE, SPRITEID)                           \
-  mrb_int SPRITEID = -1;                                                       \
-  State * STATE    = state_get();                                              \
-  Sprite * sprite  = NULL;                                                     \
-  (void) self;                                                                 
-
-
-#define TR_SPRITE_II_INT(NAME, TOCALL)                                         \
-static mrb_value NAME(mrb_state * mrb, mrb_value self) {                       \
-  TR_SPRITE_FUNC_INIT(sprite, state, index)                                    \
-  mrb_int result;                                                              \
-  mrb_int i1, i2;                                                              \
-  mrb_get_args(mrb, "iii", &index, &i1, &i2);                                  \
-  TR_SPRITE_GET(sprite, state, index);                                         \
-  result = TOCALL(sprite, i1, i2);                                             \
-  return mrb_fixnum_value(result);                                             \
-}
-
-
-
 
 #define TR_METHOD(MRB, CLASS, NAME, IMPL, FLAGS)                               \
         mrb_define_method((MRB), (CLASS), (NAME), (IMPL), (FLAGS))
@@ -234,6 +143,9 @@ mrb_define_class_method((MRB), (CLASS), (NAME), (IMPL), ARGS_REQ(ARGC) | ARGS_OP
 
 #define TR_CONST_INT_EASY(MRB, CLASS, PREFIX, NAME) \
         TR_CONST_INT(MRB, CLASS, #NAME, PREFIX##NAME)
+
+#define TR_CONST_INT_VALUE(MRB, CLASS, VALUE) \
+        TR_CONST_INT(MRB, CLASS, #VALUE, VALUE)
 
 
 #endif // TR_H_INCLUDED

@@ -1,59 +1,25 @@
 
-p "Hi from main.rb"
-p global_variables
-# p :$--TEST--
-# p $"--TEST
-log "hello to log"
+script "log.rb"
 
-class Client 
-  attr_reader :id
-  attr_reader :buffer
-  attr_reader :in_lines
-  
-  def initialize(id)
-    @id       = id
-    @buffer   = ""
-    @in_lines = []
+log "Main mruby script loaded OK."
+p Signal.constants
+
+script "client.rb"
+
+# Return an array of symbols of constants of klass that match value
+def const_syms(klass, value)
+  res = []
+  klass.constants.each do |c|
+     cv = klass.const_get(c)
+     res << c if cv == value
   end
-  
-  def self.add(client_id)
-    @clients2 ||= {}
-    @clients[client_id] = Client.new(client_id)
-  end
-  
-  def self.get(client_id)
-    @clients ||= {}
-    return @clients[client_id]
-  end
-  
-  def self.remove(client_id)    
-    @clients[client_id] = nil
-  end
-  
-  def send(text) 
-  log "Client #{@id}, send #{text}"
-    Woe::Server.send_to_client(@id, text)
-  end
-  
-  def on_input(str)
-    @buffer ||= ""
-    @buffer << str
-    if @buffer["\r\n"]
-      command, rest = @buffer.split("\r\n", 1)
-      log "Client #{@id}, command #{command}"
-      if (command.strip == "quit") 
-        self.send("Bye bye!")
-        Woe::Server.disconnect(@id)
-        Client.remove(@id)
-        return nil
-      else 
-        self.send("I don't know how to #{command}")
-      end
-      @buffer = rest
-    end    
-  end  
+  return res
 end
 
+
+def signal_syms(value)
+  return const_syms(Signal, value) 
+end
 
 
 def woe_on_connect(client_id)
@@ -79,17 +45,75 @@ def woe_on_input(client_id, buf)
 end
 
 def woe_on_negotiate(client_id, how, option) 
-  p "Client #{client} #{client.id} negotiating."
+  p "Client #{client_id} negotiating."
 end
 
 def woe_on_subnegotiate(client_id, option, buffer) 
-  p "Client #{client} #{client.id} negotiating."
+  p "Client #{client_id} subnegotiating."
 end
+
+def woe_on_iac(client_id, option, command) 
+  p "Client #{client_id} iac #{command}."
+end
+
+
+def woe_on_ttype(client_id, cmd, name) 
+  p "Client #{client_id} ttype #{cmd} #{name}."
+end
+
+def woe_on_error(client_id, code, message) 
+end
+
+def woe_on_warning(client_id, code, message) 
+end
+
+
+def woe_begin_compress(client_id, state) 
+end
+
+
+def woe_begin_zmp(client_id, size) 
+end
+
+def woe_zmp_arg(client_id, index, value)  
+end
+
+def woe_finish_zmp(client_id, size) 
+end
+
+
+def woe_begin_environ(client_id, size) 
+end
+
+def woe_environ_arg(client_id, index, type, key, value)  
+end
+
+def woe_finish_environ(client_id, size) 
+end
+
+
+def woe_begin_mssp(client_id, size) 
+end
+
+def woe_mssp_arg(client_id, index, type, key, value)  
+end
+
+def woe_finish_mssp(client_id, size) 
+end
+
 
 
 def woe_on_signal(signal)
-  log "Received signal in script #{signal}"
-  if signal !=28 
-    Woe::Server.quit 
+  log "Received signal #{signal} #{signal_syms(signal)} in script"
+  case signal 
+    when 10 # SIGUSR1
+      log "Reloading main script."
+      script "main.rb"
+    when 28 
+      # ignore this signal
+    else
+      Woe::Server.quit 
   end
 end
+
+

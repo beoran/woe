@@ -10,7 +10,9 @@
 #include "rh.h"
 #include "state.h"
 #include "server.h"
+#include "libtelnet.h"
 
+#include <signal.h>
 #include <mruby/hash.h>
 #include <mruby/class.h>
 #include <mruby/data.h>
@@ -285,39 +287,23 @@ int tr_init(mrb_state * mrb) {
   struct RClass *woe;
   struct RClass *srv;
   struct RClass *krn;
+  struct RClass *tel;
+  struct RClass *sig;
+  
  
   woe = mrb_define_module(mrb, "Woe");
   srv = mrb_define_module_under(mrb, woe, "Server"); 
+  tel = mrb_define_module(mrb, "Telnet");
+  sig = mrb_define_module(mrb, "Signal");
+  krn = mrb_module_get(mrb, "Kernel");
+  if(!krn) return -1;
+  
   TR_CLASS_METHOD_NOARG(mrb, woe, "quit"  , tr_server_done);
   TR_CLASS_METHOD_NOARG(mrb, srv, "quit"  , tr_server_done);
   TR_CLASS_METHOD_ARGC(mrb, srv, "send_to_client"  , tr_send_to_client, 2);
   TR_CLASS_METHOD_NOARG(mrb, srv, "disconnect"  , tr_disconnect_client);
-
-int woe_server_iac(struct woe_server * srv, int client, int command);
-int woe_server_negotiate(struct woe_server * srv, int client, int how, int option);
-int woe_server_begin_sb(struct woe_server * srv, int client, int telopt);
-int woe_server_finish_sb(struct woe_server * srv, int client);
-int woe_server_subnegotiation(struct woe_server * srv, int client, int telopt, char * buffer, int size);
-int woe_server_begin_compress2(struct woe_server * srv, int client);
-int woe_server_vprintf(struct woe_server * srv, int client, const char *fmt, va_list va);
-int woe_server_printf(struct woe_server * srv, int client, const char *fmt, ...);
-int woe_server_raw_vprintf(struct woe_server * srv, int client, const char *fmt, va_list va);
-int woe_server_raw_printf(struct woe_server * srv, int client, const char *fmt, ...);
-int woe_server_begin_newenviron(struct woe_server * srv, int client, int type);
-int woe_server_newenviron_value(struct woe_server * srv, int client, int type, char * value);
-int woe_server_finish_newenviron(struct woe_server * srv, int client);
-int woe_server_ttype_send(struct woe_server * srv, int client);
-int woe_server_ttype_is(struct woe_server * srv, int client, char * ttype);
-int woe_server_send_zmp(struct woe_server * srv, int client, int argc, const char ** argv);
-int woe_server_send_vzmpv(struct woe_server * srv, int client, va_list va);
-int woe_server_send_zmpv(struct woe_server * srv, int client, ...);
-int woe_server_begin_zmp(struct woe_server * srv, int client, const char * cmd);
-int woe_server_zmp_arg(struct woe_server * srv, int client, const char * arg);
-int woe_server_finish_zmp(struct woe_server * srv, int client, const char * cmd);
-
-
+  
   TR_CLASS_METHOD_ARGC(mrb, srv, "iac"  , tr_server_iac, 2);
-
   TR_CLASS_METHOD_ARGC(mrb, srv, "negotiate"      , tr_server_negotiate     , 3);
   TR_CLASS_METHOD_ARGC(mrb, srv, "begin_sb"       , tr_server_begin_sb      , 2);
   TR_CLASS_METHOD_ARGC(mrb, srv, "finish_sb"      , tr_server_finish_sb     , 1);
@@ -334,14 +320,136 @@ int woe_server_finish_zmp(struct woe_server * srv, int client, const char * cmd)
   TR_CLASS_METHOD_ARGC(mrb, srv, "zmp_arg"  , tr_server_finish_zmp, 2);
   TR_CLASS_METHOD_ARGC(mrb, srv, "finish_zmp"  , tr_server_finish_zmp, 2);
 
+  /* Telnet constants, commands, etc. */
   
-  krn = mrb_module_get(mrb, "Kernel");
-  if(!krn) return -1;
+  TR_CONST_INT_VALUE(mrb, tel, TELNET_IAC);
+  TR_CONST_INT_VALUE(mrb, tel, TELNET_DONT);
+  TR_CONST_INT_VALUE(mrb, tel, TELNET_DO);
+  TR_CONST_INT_VALUE(mrb, tel, TELNET_WILL);
+  TR_CONST_INT_VALUE(mrb, tel, TELNET_WONT);
+  TR_CONST_INT_VALUE(mrb, tel, TELNET_SB);
+  TR_CONST_INT_VALUE(mrb, tel, TELNET_GA);
+  TR_CONST_INT_VALUE(mrb, tel, TELNET_EL);
+  TR_CONST_INT_VALUE(mrb, tel, TELNET_EC);
+  TR_CONST_INT_VALUE(mrb, tel, TELNET_AYT);
+  TR_CONST_INT_VALUE(mrb, tel, TELNET_AO);
+  TR_CONST_INT_VALUE(mrb, tel, TELNET_IP);
+  TR_CONST_INT_VALUE(mrb, tel, TELNET_BREAK);
+  TR_CONST_INT_VALUE(mrb, tel, TELNET_DM);
+  TR_CONST_INT_VALUE(mrb, tel, TELNET_NOP);
+  TR_CONST_INT_VALUE(mrb, tel, TELNET_SE);
+  TR_CONST_INT_VALUE(mrb, tel, TELNET_EOR);
+  TR_CONST_INT_VALUE(mrb, tel, TELNET_ABORT);
+  TR_CONST_INT_VALUE(mrb, tel, TELNET_SUSP);
+  TR_CONST_INT_VALUE(mrb, tel, TELNET_EOF);
+  TR_CONST_INT_VALUE(mrb, tel, TELNET_TELOPT_BINARY);
+  TR_CONST_INT_VALUE(mrb, tel, TELNET_TELOPT_ECHO);
+  TR_CONST_INT_VALUE(mrb, tel, TELNET_TELOPT_RCP);
+  TR_CONST_INT_VALUE(mrb, tel, TELNET_TELOPT_SGA);
+  TR_CONST_INT_VALUE(mrb, tel, TELNET_TELOPT_NAMS);
+  TR_CONST_INT_VALUE(mrb, tel, TELNET_TELOPT_STATUS);
+  TR_CONST_INT_VALUE(mrb, tel, TELNET_TELOPT_TM);
+  TR_CONST_INT_VALUE(mrb, tel, TELNET_TELOPT_RCTE);
+  TR_CONST_INT_VALUE(mrb, tel, TELNET_TELOPT_NAOL);
+  TR_CONST_INT_VALUE(mrb, tel, TELNET_TELOPT_NAOP);
+  TR_CONST_INT_VALUE(mrb, tel, TELNET_TELOPT_NAOCRD);
+  TR_CONST_INT_VALUE(mrb, tel, TELNET_TELOPT_NAOHTS);
+  TR_CONST_INT_VALUE(mrb, tel, TELNET_TELOPT_NAOHTD);
+  TR_CONST_INT_VALUE(mrb, tel, TELNET_TELOPT_NAOFFD);
+  TR_CONST_INT_VALUE(mrb, tel, TELNET_TELOPT_NAOVTS);
+  TR_CONST_INT_VALUE(mrb, tel, TELNET_TELOPT_NAOVTD);
   
-  TR_METHOD_ARGC(mrb, krn, "warn"         , tr_warn   , 1);
-  TR_METHOD_ARGC(mrb, krn, "warning"      , tr_warn   , 1);
-  TR_METHOD_ARGC(mrb, krn, "log"          , tr_log    , 1);
-  TR_METHOD_ARGC(mrb, krn, "log_to"       , tr_log_to , 2);
+  TR_CONST_INT_VALUE(mrb, tel, TELNET_TELOPT_NAOLFD);
+  TR_CONST_INT_VALUE(mrb, tel, TELNET_TELOPT_XASCII);
+  TR_CONST_INT_VALUE(mrb, tel, TELNET_TELOPT_LOGOUT);
+  TR_CONST_INT_VALUE(mrb, tel, TELNET_TELOPT_BM);
+  TR_CONST_INT_VALUE(mrb, tel, TELNET_TELOPT_DET);
+  TR_CONST_INT_VALUE(mrb, tel, TELNET_TELOPT_SUPDUP);
+  TR_CONST_INT_VALUE(mrb, tel, TELNET_TELOPT_SUPDUPOUTPUT);
+  TR_CONST_INT_VALUE(mrb, tel, TELNET_TELOPT_SNDLOC);
+  TR_CONST_INT_VALUE(mrb, tel, TELNET_TELOPT_TTYPE);
+  TR_CONST_INT_VALUE(mrb, tel, TELNET_TELOPT_EOR);
+  TR_CONST_INT_VALUE(mrb, tel, TELNET_TELOPT_3270REGIME);
+  TR_CONST_INT_VALUE(mrb, tel, TELNET_TELOPT_X3PAD);
+  TR_CONST_INT_VALUE(mrb, tel, TELNET_TELOPT_NAWS);
+  TR_CONST_INT_VALUE(mrb, tel, TELNET_TELOPT_TSPEED);
+  TR_CONST_INT_VALUE(mrb, tel, TELNET_TELOPT_LFLOW);
+  TR_CONST_INT_VALUE(mrb, tel, TELNET_TELOPT_LINEMODE);
+  TR_CONST_INT_VALUE(mrb, tel, TELNET_TELOPT_XDISPLOC);
+  TR_CONST_INT_VALUE(mrb, tel, TELNET_TELOPT_ENVIRON);
+  TR_CONST_INT_VALUE(mrb, tel, TELNET_TELOPT_AUTHENTICATION);
+  TR_CONST_INT_VALUE(mrb, tel, TELNET_TELOPT_ENCRYPT);
+  TR_CONST_INT_VALUE(mrb, tel, TELNET_TELOPT_NEW_ENVIRON);
+  TR_CONST_INT_VALUE(mrb, tel, TELNET_TELOPT_MSSP);
+  TR_CONST_INT_VALUE(mrb, tel, TELNET_TELOPT_COMPRESS);
+  TR_CONST_INT_VALUE(mrb, tel, TELNET_TELOPT_COMPRESS2);
+  TR_CONST_INT_VALUE(mrb, tel, TELNET_TELOPT_ZMP);
+  TR_CONST_INT_VALUE(mrb, tel, TELNET_TELOPT_EXOPL);
+  TR_CONST_INT_VALUE(mrb, tel, TELNET_TELOPT_MCCP2);
+
+  TR_CONST_INT_VALUE(mrb, tel, TELNET_TTYPE_IS);
+  TR_CONST_INT_VALUE(mrb, tel, TELNET_TTYPE_SEND);
+
+  TR_CONST_INT_VALUE(mrb, tel, TELNET_ENVIRON_IS);
+  TR_CONST_INT_VALUE(mrb, tel, TELNET_ENVIRON_SEND);
+  TR_CONST_INT_VALUE(mrb, tel, TELNET_ENVIRON_INFO);
+  TR_CONST_INT_VALUE(mrb, tel, TELNET_ENVIRON_VAR);
+  TR_CONST_INT_VALUE(mrb, tel, TELNET_ENVIRON_VALUE);
+  TR_CONST_INT_VALUE(mrb, tel, TELNET_ENVIRON_ESC);
+  TR_CONST_INT_VALUE(mrb, tel, TELNET_ENVIRON_USERVAR);
+
+  TR_CONST_INT_VALUE(mrb, tel, TELNET_MSSP_VAL);
+  TR_CONST_INT_VALUE(mrb, tel, TELNET_MSSP_VAR);
+
+  TR_CONST_INT_VALUE(mrb, tel, TELNET_EOK);
+  TR_CONST_INT_VALUE(mrb, tel, TELNET_EBADVAL);
+  TR_CONST_INT_VALUE(mrb, tel, TELNET_ENOMEM);
+  TR_CONST_INT_VALUE(mrb, tel, TELNET_EOVERFLOW);
+  TR_CONST_INT_VALUE(mrb, tel, TELNET_EPROTOCOL);
+  TR_CONST_INT_VALUE(mrb, tel, TELNET_ECOMPRESS);
+
+  TR_CONST_INT_VALUE(mrb, sig, SIGHUP);
+  TR_CONST_INT_VALUE(mrb, sig, SIGINT);
+  TR_CONST_INT_VALUE(mrb, sig, SIGQUIT);
+  TR_CONST_INT_VALUE(mrb, sig, SIGILL);
+  TR_CONST_INT_VALUE(mrb, sig, SIGABRT);
+  TR_CONST_INT_VALUE(mrb, sig, SIGFPE);
+  TR_CONST_INT_VALUE(mrb, sig, SIGKILL);
+  TR_CONST_INT_VALUE(mrb, sig, SIGSEGV);
+  TR_CONST_INT_VALUE(mrb, sig, SIGPIPE);
+  TR_CONST_INT_VALUE(mrb, sig, SIGALRM);
+  TR_CONST_INT_VALUE(mrb, sig, SIGTERM);
+  TR_CONST_INT_VALUE(mrb, sig, SIGUSR1);
+  TR_CONST_INT_VALUE(mrb, sig, SIGUSR2);
+  TR_CONST_INT_VALUE(mrb, sig, SIGCHLD);
+  TR_CONST_INT_VALUE(mrb, sig, SIGCONT);
+  TR_CONST_INT_VALUE(mrb, sig, SIGSTOP);
+  TR_CONST_INT_VALUE(mrb, sig, SIGTSTP);
+  TR_CONST_INT_VALUE(mrb, sig, SIGTTIN);
+  TR_CONST_INT_VALUE(mrb, sig, SIGTTOU);
+  TR_CONST_INT_VALUE(mrb, sig, SIGBUS);
+  TR_CONST_INT_VALUE(mrb, sig, SIGPOLL);
+  TR_CONST_INT_VALUE(mrb, sig, SIGPROF);
+  TR_CONST_INT_VALUE(mrb, sig, SIGSYS);
+  TR_CONST_INT_VALUE(mrb, sig, SIGTRAP);
+  TR_CONST_INT_VALUE(mrb, sig, SIGURG);
+  TR_CONST_INT_VALUE(mrb, sig, SIGVTALRM);
+  TR_CONST_INT_VALUE(mrb, sig, SIGXCPU);  
+  TR_CONST_INT_VALUE(mrb, sig, SIGXFSZ);
+  TR_CONST_INT_VALUE(mrb, sig, SIGIOT);
+  TR_CONST_INT_VALUE(mrb, sig, SIGSTKFLT);
+  TR_CONST_INT_VALUE(mrb, sig, SIGIO);
+  TR_CONST_INT_VALUE(mrb, sig, SIGCLD);
+  TR_CONST_INT_VALUE(mrb, sig, SIGPWR);
+  TR_CONST_INT_VALUE(mrb, sig, SIGWINCH);
+  TR_CONST_INT_VALUE(mrb, sig, SIGUNUSED);
+
+  
+  
+  TR_METHOD_ARGC(mrb, krn, "woe_warn"     , tr_warn   , 1);
+  TR_METHOD_ARGC(mrb, krn, "woe_warning"  , tr_warn   , 1);
+  TR_METHOD_ARGC(mrb, krn, "woe_log"      , tr_log    , 1);
+  TR_METHOD_ARGC(mrb, krn, "woe_log_to"   , tr_log_to , 2);
   TR_METHOD_ARGC(mrb, krn, "log_enable"   , tr_log_disable , 1);
   TR_METHOD_ARGC(mrb, krn, "log_disable"  , tr_log_enable  , 1);
   TR_METHOD_ARGC(mrb, krn, "script"       , tr_script , 1);
