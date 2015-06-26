@@ -20,6 +20,7 @@
 #include <ctype.h>
 
 #include "client.h"
+#include "timer.h"
 #include "server.h"
 #include "monolog.h"
 
@@ -40,6 +41,7 @@ static const telnet_telopt_t woe_telnet_opts[] = {
 #define WOE_SERVER_BUFFER_SIZE      10000
 #define WOE_SERVER_LISTEN_BACKLOG   8
 
+
 struct woe_server {
   char                buffer[WOE_SERVER_BUFFER_SIZE];
   short               listen_port;
@@ -51,6 +53,8 @@ struct woe_server {
   
   struct pollfd       pfd[WOE_CLIENTS_MAX + 1];
   struct woe_client * clients[WOE_CLIENTS_MAX];  
+  struct woe_timer  * timers[WOE_TIMERS_MAX]; 
+  
   void (*event_handler)      (telnet_t *telnet, telnet_event_t *ev, void *user_data);
   void (*disconnect_handler) (struct woe_server * srv, struct woe_client * cli, void *user_data);
 };
@@ -184,7 +188,18 @@ int woe_server_busy(struct woe_server * srv) {
 
 
 struct woe_server * woe_server_free(struct woe_server * srv) {
+  int index;
+  
   close(srv->listen_sock);
+ 
+  for (index = 0; index < WOE_CLIENTS_MAX; ++index) {
+     woe_server_remove_client(srv, index);
+  }
+
+  for (index = 0; index < WOE_TIMERS_MAX; ++index) {
+     woe_server_remove_timer(srv, index);
+  }
+
   free(srv);
   return NULL;
 }
@@ -204,6 +219,10 @@ struct woe_server * woe_server_init(struct woe_server * srv, int port) {
   
   for (index = 0; index < WOE_CLIENTS_MAX; ++index) {
      srv->clients[index] = NULL;
+  }
+
+  for (index = 0; index < WOE_TIMERS_MAX; ++index) {
+     srv->timers[index] = NULL;
   }
   
    srv->event_handler = woe_event_handler;
@@ -311,6 +330,75 @@ struct woe_client * woe_server_remove_client(struct woe_server * srv, int index)
 }
 
 
+/** Returns one of the timers of the server or NULL if not in use or out of 
+ * range */
+struct woe_timer * woe_server_get_timer(struct woe_server * srv, int index) {
+  if (!srv)                           return NULL;
+  if (index < 0)                      return NULL;
+  if (index >= WOE_CLIENTS_MAX)       return NULL;
+  return srv->timers[index];
+}
+
+/** Stores a timer of the server at the given index*/
+struct woe_timer * woe_server_put_timer(struct woe_server * srv, int index, struct woe_timer * tim) {
+  if (!srv)                           return NULL;
+  if (!tim)                           return NULL;
+  if (index < 0)                      return NULL;
+  if (index >= WOE_TIMERS_MAX)        return NULL;
+  if (srv->timers[index]) {
+    woe_timer_free(srv->timers[index]);
+  }  
+  srv->timers[index] = tim;
+  return tim; 
+}
+
+/** Removes a timer of the server at the given index*/
+struct woe_timer * woe_server_remove_timer(struct woe_server * srv, int index) {
+  if (!srv)                           return NULL;
+  if (index < 0)                      return NULL;
+  if (index >= WOE_TIMERS_MAX)        return NULL;
+  if (srv->timers[index])  {
+    woe_timer_free(srv->timers[index]);
+  }  
+  srv->timers[index] = NULL;
+  return NULL; 
+}
+
+
+/** Find an index to put a newtimerr and returns a pointer to it. 
+ *  Returns -1 if no free space is available. 
+ **/
+int woe_server_get_available_timer_index(struct woe_server * srv) {
+   int i;
+   for (i = 0; i < WOE_TIMERS_MAX; ++i) {
+     struct woe_timer * timer = woe_server_get_timer(srv, i);
+     if (!timer) {
+       return i;
+     } 
+   }
+   return -1;
+}
+
+/** Creates a new timer for this server. Return null if no memory or no space 
+ * for a new timer. */
+struct woe_timer * woe_server_make_new_timer(struct woe_server * srv) {
+   struct woe_timer * new;
+   int index = woe_server_get_available_timer_index(srv);
+   if (index < 0) return NULL;
+   new = woe_timer_new(srv, index);
+   return woe_server_put_timer(srv, index, new);
+} 
+
+
+/** Creates a new timr and returns it's id. */
+int woe_server_make_new_timer_id(struct woe_server * srv) {
+   struct woe_timer * new = woe_server_make_new_timer(srv);
+   if (!new) return -1;
+   return new->index;
+}
+
+
+
 /** Find an index to put a new user and returns a pointer to it. 
  *  Returns -1 if no free space is available. 
  **/
@@ -336,6 +424,23 @@ struct woe_client * woe_server_make_new_client(struct woe_server * srv,
    return woe_server_put_client(srv, index, new);
 } 
 
+
+
+/** Sets a timer's values by id */
+int woe_server_set_timer_value(struct woe_server * srv, int index, double value, double interval) {
+  struct woe_timer * tim;
+  tim = woe_server_get_timer(srv, index);
+  if (!tim) return -1;
+  return woe_timer_set(tim, value, interval);
+}
+
+/** Gets a timer's values by id */
+int woe_server_get_timer_value(struct woe_server * srv, int index, double * value, double * interval) {
+  struct woe_timer * tim;
+  tim = woe_server_get_timer(srv, index);
+  if (!tim) return -1;
+  return woe_timer_get(tim, value, interval);
+}
 
 
 /* Handles a new connection to this server. */
@@ -647,6 +752,24 @@ int woe_server_disconnect_id(struct woe_server * srv, int id) {
 int woe_server_update(struct woe_server * srv, int timeout) {
   int i, res;
 
+  /* Check timers for readiness. */
+  for (i = 0; i < WOE_TIMERS_MAX; ++i) {
+    struct woe_timer * timer = woe_server_get_timer(srv, i);
+    if (woe_timer_passed(timer)) {
+      woe_timer_callback(timer);
+    }
+  }
+
+  
+  /* Disconnect clients that should quit */
+  for (i = 0; i < WOE_CLIENTS_MAX; ++i) {
+    struct woe_client * client = woe_server_get_client(srv, i);
+    if (!client) continue;
+    if (!client->busy) {
+      woe_server_disconnect(srv, client);
+    }  
+  }
+
   /* prepare for poll */
   memset(srv->pfd     , 0     , sizeof(srv->pfd));
   
@@ -710,15 +833,8 @@ int woe_server_update(struct woe_server * srv, int timeout) {
     }
   }
   
-  /* Disconnect clients that should quit */
-  for (i = 0; i < WOE_CLIENTS_MAX; ++i) {
-    struct woe_client * client = woe_server_get_client(srv, i);
-    if (!client) continue;
-    if (!client->busy) {
-      woe_server_disconnect(srv, client);
-    }  
-  }
   
+    
   return 0;
 }
 

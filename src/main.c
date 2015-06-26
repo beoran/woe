@@ -14,6 +14,7 @@
 #include "state.h"
 #include "rh.h"
 #include "toruby.h"
+#include "timer.h"
 
 
 
@@ -93,13 +94,20 @@ int main(int argc, char * argv[]) {
     rh_run_toplevel(state.mrb, "woe_on_start", "");
     while (woe_server_busy(state.server)) {
       int caught = 0;
-      
+      siginfo_t info;
+      struct woe_timer * timer;
+      info.si_value.sival_ptr = NULL;
       woe_server_update(state.server, 1);
-      caught = sigtimedwait(&signal_set, NULL, &signal_time);
+      caught = sigtimedwait(&signal_set, &info, &signal_time);
       if (caught > 0) {
-        LOG_NOTE("Received signal %d\n", caught);
-        rh_run_toplevel(state.mrb, "woe_on_signal", "i", caught);
-        /* woe_server_request_shutdown(state.server); */
+        timer = info.si_value.sival_ptr; 
+        if (timer) { 
+          LOG_DEBUG("Received timer signal %d, %d\n", caught, timer->index);
+          woe_timer_callback(timer);
+        } else {
+          LOG_NOTE("Received signal %d\n", caught);
+          rh_run_toplevel(state.mrb, "woe_on_signal", "i", caught);
+        }
       }
     }
   }

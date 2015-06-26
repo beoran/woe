@@ -22,6 +22,18 @@ def signal_syms(value)
 end
 
 
+def start_timers
+  @started_timers ||= false
+  if @started_timers
+    log "Timers already started."
+  else
+    log "Staring timer(s)..."
+    @timer_id = Woe::Server.new_timer()
+    Woe::Server.set_timer(@timer_id, 1.0, 1.0);
+  end
+  @started_timers = true
+end
+
 def woe_on_connect(client_id)
   p "Client #{client_id} connected"
   Client.add(client_id)
@@ -115,5 +127,13 @@ def woe_on_signal(signal)
       Woe::Server.quit 
   end
 end
+
+
+def woe_on_timer(timer, value, interval)
+  log "Timer #{timer} #{value} #{interval} passed."
+end
+
+
+start_timers
 
 

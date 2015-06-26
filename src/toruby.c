@@ -17,6 +17,7 @@
 #include <mruby/class.h>
 #include <mruby/data.h>
 #include <mruby/array.h>
+
 /*
 #include "tr_macro.h"
 #include "tr_audio.h"
@@ -174,6 +175,14 @@ static mrb_value NAME(mrb_state * mrb, mrb_value self) {          \
   struct woe_server * srv = MRB_WOE_SERVER(mrb);                  \
   (void) self;                                                    \
   
+
+#define WRAP_SERVER_TIMER_BEGIN(NAME) \
+static mrb_value NAME(mrb_state * mrb, mrb_value self) {          \
+  int res;                                                        \
+  mrb_int timer = -1;                                             \
+  struct woe_server * srv = MRB_WOE_SERVER(mrb);                  \
+  (void) self;                                                    \
+
   
 #define WRAP_SERVER_END() \
   return mrb_fixnum_value(res); \
@@ -281,6 +290,35 @@ WRAP_SERVER_BEGIN(tr_server_finish_zmp) {
   res = woe_server_finish_zmp(srv, client, command);
 } WRAP_SERVER_END()
 
+
+WRAP_SERVER_TIMER_BEGIN(tr_server_new_timer) { 
+  (void) timer; 
+  res = woe_server_make_new_timer_id(srv);
+} WRAP_SERVER_END()
+
+
+WRAP_SERVER_TIMER_BEGIN(tr_server_set_timer) { 
+  mrb_float value = 0.0, interval = 0.0;
+  mrb_get_args(mrb, "iff", &timer, &value, &interval);
+  res = woe_server_set_timer_value(srv, timer, value, interval);
+} WRAP_SERVER_END()
+
+static mrb_value tr_server_get_timer(mrb_state * mrb, mrb_value self) {
+  int res;                                                        
+  mrb_int timer = -1;                                             
+  struct woe_server * srv = MRB_WOE_SERVER(mrb);                  
+  (void) self;
+  double value = 0.0, interval = 0.0;
+  mrb_get_args(mrb, "i", &timer);
+  res = woe_server_get_timer_value(srv, timer, &value, &interval);
+  { 
+    mrb_value vals[3] = { mrb_fixnum_value(res), mrb_float_value(mrb, value), mrb_float_value(mrb, interval) };
+    return mrb_ary_new_from_values(mrb, 3, vals);
+  }
+}
+
+
+
 /* Initializes the functionality that Eruta exposes to Ruby. */
 int tr_init(mrb_state * mrb) {
   // luaL_dostring(lua, "print 'Hello!' ");
@@ -320,6 +358,10 @@ int tr_init(mrb_state * mrb) {
   TR_CLASS_METHOD_ARGC(mrb, srv, "zmp_arg"  , tr_server_finish_zmp, 2);
   TR_CLASS_METHOD_ARGC(mrb, srv, "finish_zmp"  , tr_server_finish_zmp, 2);
 
+  TR_CLASS_METHOD_NOARG(mrb, srv, "new_timer"  , tr_server_new_timer);
+  TR_CLASS_METHOD_ARGC(mrb, srv, "set_timer"  , tr_server_set_timer, 3);
+  TR_CLASS_METHOD_ARGC(mrb, srv, "get_timer"  , tr_server_get_timer, 1);
+  
   /* Telnet constants, commands, etc. */
   
   TR_CONST_INT_VALUE(mrb, tel, TELNET_IAC);

@@ -28,12 +28,17 @@ struct woe_timer {
   struct woe_server * server;
   int                 index;
   timer_t             timer;
+  int                 set;
+  struct sigaction    sa;
 };
 
 
-struct woe_timer * woe_timer_new(struct woe_server * srv,  int index);
-struct woe_timer * woe_timer_free(struct woe_timer * tim);
 
-
+struct woe_timer * woe_timer_new(struct woe_server * server, int index);
+struct woe_timer * woe_timer_free(struct woe_timer * me);
+int woe_timer_get(struct woe_timer * me, double * value, double * interval);
+int woe_timer_set(struct woe_timer * me, double value, double interval);
+int woe_timer_passed(struct woe_timer * me);
+int woe_timer_callback(struct woe_timer * me);
 
 #endif
