@@ -19,6 +19,7 @@ SRC_FILES  += src/every.c
 SRC_FILES  += src/dynar.c
 SRC_FILES  += src/monolog.c
 SRC_FILES  += src/server.c
+SRC_FILES  += src/tr_file.c
 SRC_FILES  += src/rh.c
 SRC_FILES  += src/toruby.c
 

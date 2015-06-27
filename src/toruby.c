@@ -11,6 +11,7 @@
 #include "state.h"
 #include "server.h"
 #include "libtelnet.h"
+#include "tr_file.h"
 
 #include <signal.h>
 #include <mruby/hash.h>
@@ -327,7 +328,9 @@ int tr_init(mrb_state * mrb) {
   struct RClass *krn;
   struct RClass *tel;
   struct RClass *sig;
+  struct RClass *fil;
   
+  tr_init_file(mrb);
  
   woe = mrb_define_module(mrb, "Woe");
   srv = mrb_define_module_under(mrb, woe, "Server"); 

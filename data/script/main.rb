@@ -5,6 +5,7 @@ log "Main mruby script loaded OK."
 p Signal.constants
 
 script "client.rb"
+script "timer.rb"
 
 # Return an array of symbols of constants of klass that match value
 def const_syms(klass, value)
@@ -21,6 +22,24 @@ def signal_syms(value)
   return const_syms(Signal, value) 
 end
 
+def woe_on_healing_tick
+  # p "healing"
+end
+
+def woe_on_motion_tick
+  # p "motion"
+end
+
+def woe_on_battle_tick
+  # p "battle"
+end
+
+def woe_on_weather_tick
+ # p "weather"
+end
+
+
+
 
 def start_timers
   @started_timers ||= false
@@ -28,8 +47,13 @@ def start_timers
     log "Timers already started."
   else
     log "Staring timer(s)..."
-    @timer_id = Woe::Server.new_timer()
-    Woe::Server.set_timer(@timer_id, 1.0, 1.0);
+    Timer.add("healing" , 30.0, 30.0) { woe_on_healing_tick }
+    Timer.add("motion"  ,  5.0,  5.0) { woe_on_motion_tick }
+    Timer.add("battle"  ,  1.0,  1.0) { woe_on_battle_tick }
+    Timer.add("weather" , 90.0, 90.0) { woe_on_weather_tick }
+    
+    #@timer_id = Woe::Server.new_timer()
+    #Woe::Server.set_timer(@timer_id, 1.0, 1.0);
   end
   @started_timers = true
 end
@@ -130,10 +154,42 @@ end
 
 
 def woe_on_timer(timer, value, interval)
-  log "Timer #{timer} #{value} #{interval} passed."
+  # log "Timer #{timer} #{value} #{interval} passed."
+  Timer.on_timer(timer)
 end
 
 
 start_timers
 
+
+f = File.open("/account/B/Beoran/Beoran.account", "r");
+if f
+  while (!f.eof?)
+    lin = f.gets(255)
+    log "Read line #{lin}"
+  end
+  f.close
+end
+
+Dir.mkdir("/account/C")
+Dir.mkdir("/account/C/Celia")
+
+
+
+f = File.open("/account/C/Celia/Celia.account", "w");
+if f
+  f.puts("name=Celia\n")
+  f.puts("algo=plain\n")
+  f.puts("pass=hello1woe\n")
+  f.close
+end
+
+f = File.open("/account/C/Celia/Celia.account", "r");
+if f
+  while (!f.eof?)
+    lin = f.gets(255)
+    log "Read line #{lin}"
+  end
+  f.close
+end
 
