@@ -4,8 +4,10 @@ script "log.rb"
 log "Main mruby script loaded OK."
 p Signal.constants
 
+script "sitef.rb"
 script "client.rb"
 script "timer.rb"
+script "account.rb"
 
 # Return an array of symbols of constants of klass that match value
 def const_syms(klass, value)
@@ -161,7 +163,7 @@ end
 
 start_timers
 
-
+=begin
 f = File.open("/account/B/Beoran/Beoran.account", "r");
 if f
   while (!f.eof?)
@@ -192,4 +194,17 @@ if f
   end
   f.close
 end
+=end
 
+rec = { :name => 'Dyon', :algo => 'plain', :pass => 'noyd8pass',
+:desc => "A buff, tanned man\n with blonde hair."
+} 
+recs = [ rec ]
+Sitef.save_filename('Dyon.test', recs);
+
+rrecs, rerrs = Sitef.load_filename('Dyon.test');
+p rrecs, rerrs
+
+a = Account.new('Dyon', 'noyd8pass')
+p a.id
+a.save
