@@ -196,15 +196,9 @@ if f
 end
 =end
 
-rec = { :name => 'Dyon', :algo => 'plain', :pass => 'noyd8pass',
-:desc => "A buff, tanned man\n with blonde hair."
-} 
-recs = [ rec ]
-Sitef.save_filename('Dyon.test', recs);
 
-rrecs, rerrs = Sitef.load_filename('Dyon.test');
-p rrecs, rerrs
-
-a = Account.new('Dyon', 'noyd8pass')
+a = Account.new(:id => 'Dyon', :pass => 'noyd8pass')
 p a.id
 a.save
+
+Account.
