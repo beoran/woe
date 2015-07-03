@@ -39,20 +39,17 @@ static void tr_file_free(mrb_state *mrb, void *ptr) {
   mrb_free(mrb, file);
 }
 
-static tr_file * file_open(mrb_state * mrb, char * filename, char * mode) 
+static FILE * file_fopen(mrb_state * mrb, char * filename, char * mode) 
 {
   struct woe_config * cfg;
   struct woesb buf = { 0 };
-  tr_file * me = NULL;
+  FILE * me = NULL;
   if (!mrb) return NULL;
   cfg = MRB_WOE_CONFIG(mrb);
   if (!cfg) return NULL;
   
-  me  = mrb_malloc(mrb, sizeof(struct tr_file));
-  if (!me) return NULL;
   if (!woesb_new_join(&buf, cfg->data_dir, "/var/", filename, NULL)) {
     LOG_ERROR("Cannot allocate space for file name.\n");
-    mrb_free(mrb, me);
     return NULL;
   }
   
@@ -63,15 +60,34 @@ static tr_file * file_open(mrb_state * mrb, char * filename, char * mode)
     return NULL;
   }
 
-  me->file = fopen(buf.text, mode);
-  if (!me->file) {
+  me = fopen(buf.text, mode);
+  if (!me) {
     LOG_ERROR("Cannot open file %s.\n", filename);
-    mrb_free(mrb, me);
     woesb_free(&buf);
     return NULL;
   }
-  me->cfg = cfg; 
+  
   woesb_free(&buf);
+  return me;
+}
+
+
+static tr_file * file_open(mrb_state * mrb, char * filename, char * mode) 
+{
+  struct woe_config * cfg;
+  tr_file * me = NULL;
+  if (!mrb) return NULL;
+  cfg = MRB_WOE_CONFIG(mrb);
+  if (!cfg) return NULL;
+  
+  me  = mrb_malloc(mrb, sizeof(struct tr_file));
+  if (!me) return NULL;
+  me->file = file_fopen(mrb, filename, mode);
+  if (!me->file) {
+    mrb_free(mrb, me);
+    return NULL;
+  }
+  me->cfg = cfg; 
   return me;
 }
 
@@ -199,26 +215,75 @@ static mrb_value tr_file_write(mrb_state * mrb, mrb_value self) {
 
 static mrb_value tr_file_read(mrb_state * mrb, mrb_value self) {
   mrb_int res, size;
-  tr_file * file; 
+  tr_file * file;
+  char * mem; 
   mrb_value buf;
+  
   
   file = tr_file_unwrap(mrb, self);
   mrb_get_args(mrb, "i", &size);
-  buf = mrb_str_buf_new(mrb, size);
- 
-  res = fread(RSTRING(buf), size, 1, file->file);
+  mem = calloc(size, 1);
+  res = fread(mem, 1, size, file->file);
   if (res > 0) {
-    mrb_str_resize(mrb, buf, res); 
+    buf = mrb_str_new(mrb, mem, size);
+    free(mem);
     return buf;
   } 
   
   if (res == 0) {
+    free(mem);
     return mrb_nil_value();
   }
   
   // if (res < 0)
+  free(mem);
   LOG_ERROR("Failed to read from file.\n");
   return mrb_nil_value();
+}   
+
+
+static mrb_value tr_file_readall(mrb_state * mrb, mrb_value self) {
+  #define READALL_BUFSIZE 1024
+  mrb_int res = 0, size = 0;
+  FILE * file;
+  char * mem = NULL, * aid = NULL; 
+  char * filename = NULL;
+  mrb_value buf;
+  (void) self;
+  
+  
+  mrb_get_args(mrb, "z", &filename);
+  if (!filename) {
+      return mrb_nil_value();
+  }
+  
+  file = file_fopen(mrb, filename, "rb");
+  
+  if (!file) { 
+    return mrb_nil_value();
+  }
+  
+  while (!feof(file)) {
+    size += READALL_BUFSIZE;
+    aid   = realloc(mem, size);
+    if (!aid) { 
+      buf = mrb_nil_value();
+      goto done;
+    }
+    mem = aid;
+    res   = fread(mem + size - READALL_BUFSIZE, 1, READALL_BUFSIZE, file);
+    
+    if (res < READALL_BUFSIZE) {
+      size = size - READALL_BUFSIZE + res;
+      break;
+    }
+  }
+  buf = mrb_str_new(mrb, mem, size);
+  
+  done:  
+    free(mem);
+    fclose(file);
+    return buf;
 }   
  
 
@@ -312,6 +377,7 @@ int tr_init_file(mrb_state * mrb) {
   fil = mrb_define_class(mrb, "File"    , mrb_class_get(mrb, "Object"));
   dir = mrb_define_class(mrb, "Dir"     , mrb_class_get(mrb, "Object"));
 
+  TR_CLASS_METHOD_ARGC(mrb, fil, "read" , tr_file_readall, 1);
   TR_CLASS_METHOD_ARGC(mrb, fil, "open" , tr_file_open, 2);
   TR_CLASS_METHOD_ARGC(mrb, fil, "link" , tr_file_link, 2);
   TR_CLASS_METHOD_ARGC(mrb, dir, "mkdir", tr_dir_mkdir, 1);

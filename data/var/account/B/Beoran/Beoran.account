@@ -1,7 +1,4 @@
-name: Beoran
-algo: clear
-pass: memuma,27
-character[2]:	[
-character[0]:	@Berne
-character[1]:	@Kei
-]
+:name:Beoran
+:algo:plain
+:pass:hello
+--

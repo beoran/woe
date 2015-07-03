@@ -32,7 +32,7 @@ TEST_FILES = test/test_model.c
 MAIN_FILE  = src/main.c
 
 MRUBY_LIBS = -lmruby_core -lmruby
-WOE_LIBS   = $(MRUBY_LIBS) -lrt -lm
+WOE_LIBS   = $(MRUBY_LIBS) -lrt -lcrypt -lm
 
 LDFLAGS = -L /usr/local/lib $(WOE_LIBS)
 

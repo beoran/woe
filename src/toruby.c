@@ -4,6 +4,8 @@
 * Look at the tr_*.c files.
 * */
 
+#define _XOPEN_SOURCE 700     
+
 #include "toruby.h"
 #include "tr_macro.h"
 #include "monolog.h"
@@ -13,6 +15,7 @@
 #include "libtelnet.h"
 #include "tr_file.h"
 
+#include <unistd.h>
 #include <signal.h>
 #include <mruby/hash.h>
 #include <mruby/class.h>
@@ -319,6 +322,17 @@ static mrb_value tr_server_get_timer(mrb_state * mrb, mrb_value self) {
 }
 
 
+static mrb_value tr_crypt(mrb_state * mrb, mrb_value self) {
+  mrb_value res;
+  char * pass = NULL;
+  char * salt = NULL;
+  char * hash = NULL;
+  mrb_get_args(mrb, "zz", &pass, &salt);
+  hash = crypt(pass, salt);
+  return mrb_str_new(mrb, hash, 13);
+}
+                            
+
 
 /* Initializes the functionality that Eruta exposes to Ruby. */
 int tr_init(mrb_state * mrb) {
@@ -339,10 +353,11 @@ int tr_init(mrb_state * mrb) {
   krn = mrb_module_get(mrb, "Kernel");
   if(!krn) return -1;
   
-  TR_CLASS_METHOD_NOARG(mrb, woe, "quit"  , tr_server_done);
-  TR_CLASS_METHOD_NOARG(mrb, srv, "quit"  , tr_server_done);
-  TR_CLASS_METHOD_ARGC(mrb, srv, "send_to_client"  , tr_send_to_client, 2);
-  TR_CLASS_METHOD_NOARG(mrb, srv, "disconnect"  , tr_disconnect_client);
+  TR_CLASS_METHOD_ARGC(mrb  , woe, "crypt"  , tr_crypt, 2);
+  TR_CLASS_METHOD_NOARG(mrb , woe,  "quit"  , tr_server_done);
+  TR_CLASS_METHOD_NOARG(mrb , srv, "quit"  , tr_server_done);
+  TR_CLASS_METHOD_ARGC(mrb  , srv, "send_to_client"  , tr_send_to_client, 2);
+  TR_CLASS_METHOD_NOARG(mrb , srv, "disconnect"  , tr_disconnect_client);
   
   TR_CLASS_METHOD_ARGC(mrb, srv, "iac"  , tr_server_iac, 2);
   TR_CLASS_METHOD_ARGC(mrb, srv, "negotiate"      , tr_server_negotiate     , 3);
