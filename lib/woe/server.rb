@@ -1,11 +1,15 @@
 require 'eventmachine'
 require 'tempfile'
 require 'fiber'
+require_relative '../monolog'
 
 
 module Woe
   class Server 
-    def initialize(port =7000)
+    include Monolog
+  
+    def initialize(port =7000, logname="woe.log")
+      Monolog.setup_all(logname)
       @port      = port
       # Keep an overall record of the client IDs allocated
       # and the lines of chat
@@ -15,7 +19,8 @@ module Woe
       @fiber     = nil
     end
     
-    def start()    
+    def start() 
+      log_info("Server listening on port #@port")
       @signature = EventMachine.start_server("0.0.0.0", @port, Client) do |client|
         @client_id          += 1
         client.id            = @client_id
@@ -28,33 +33,43 @@ module Woe
       end  
     end
     
+    
     def run
+      log_info("Server main loop starts.")
       EventMachine.run do       
         self.start
-      end  
+      end
     end
     
     
     def disconnect(id)
+      log_info("Server disconnecting client #{@id}")
       @clients.delete(id)
     end
     
-    def clients_stopped?    
+    def clients_stopped?
     end
     
     def reload
-      broadcast("Reloading\n")
+      log_info("Server reload")
+      broadcast("Server reload NOW!\n")
       begin 
         load 'lib/woe/server.rb'
-        broadcast("Reloaded\n")
+        broadcast("Server reloaded OK.\n")
       rescue Exception => ex
-        broadcast("Exception #{ex}: #{ex.backtrace.join("\n")}!\n")
+        bt = ex.backtrace.join("\n")
+        log_error("Server reload failed: #{ex}: #{bt}")
+        broadcast("Server reload exception #{ex}: #{bt}!\n")
       end
     end
     
     def stop
+      log_info("Server stop")
       EventMachine.stop_server(@signature)
-      EventMachine.add_timer(1) { EventMachine.stop }
+      EventMachine.add_timer(1) do 
+        EventMachine.stop
+        log_info("Server stop OK.")
+      end
     end
     
    
@@ -65,8 +80,8 @@ module Woe
     end
     
 
-    def self.run(port=7000)    
-      server = Woe::Server.new(port)
+    def self.run(port=7000, logname="woe.log")    
+      server = Woe::Server.new(port, logname)
       server.run
     end
       

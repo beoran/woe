@@ -1,6 +1,7 @@
 require 'eventmachine'
 require 'tempfile'
 require 'fiber'
+require_relative '../monolog'
 
 
 module Woe
@@ -36,6 +37,8 @@ class Minifilter
 end
 
 class Client < EventMachine::Connection
+  include Monolog
+
   attr_accessor :id
   attr_accessor :server
   
@@ -57,6 +60,7 @@ class Client < EventMachine::Connection
     @port, @ip  = Socket.unpack_sockaddr_in(pn)
     send_data("You are connecting from #{@ip}:#{@port}\n")
     @connected  = true
+    log_info("Client #{@id} connected from #{@ip}:#{@port}")
     self.send_data("Login:")
   end
       
@@ -152,11 +156,9 @@ class Client < EventMachine::Connection
   
   
   
-  
   def unbind
-    $stderr.puts("Client #{id} has left")
+    log_info("Client #{@id} has left from #{@ip}:#{@port}")
     @server.disconnect(@id)
-    
   end
 end
 

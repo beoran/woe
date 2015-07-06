@@ -25,7 +25,7 @@ module Monolog
     end
     
     def log(file, line, name, format, *args)
-      @data.printf("%s: %s: %d: ", name, file, line)
+      @data.printf("%s: %s: %s: %d: ", Time.now.to_s, name, file, line)
       @data.printf(format, *args)
       @data.printf("\n")
     end
