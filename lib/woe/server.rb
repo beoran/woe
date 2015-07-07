@@ -19,13 +19,22 @@ module Woe
       @fiber     = nil
     end
     
+    def get_free_client_id
+      cli = 0
+      @clients.each do |client|
+        return cli if client.nil?
+        cli += 1
+      end
+      return cli
+    end
+    
     def start() 
       log_info("Server listening on port #@port")
       @signature = EventMachine.start_server("0.0.0.0", @port, Client) do |client|
-        @client_id          += 1
-        client.id            = @client_id
+        client_id            = get_free_client_id
+        client.id            = client_id
         client.server        = self   
-        @clients[@client_id] = client
+        @clients[client_id]  = client
       end
       EventMachine.add_periodic_timer(1) do 
         @tick_id            += 1

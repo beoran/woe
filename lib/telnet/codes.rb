@@ -2,109 +2,107 @@
 # Based on code by Jon A. Lambert,  under the Zlib license.
  
 module Telnet
+  module Codes
+    # Telnet commands
+    TELNET_IAC = 255
+    TELNET_DONT = 254
+    TELNET_DO = 253
+    TELNET_WONT = 252
+    TELNET_WILL = 251
+    TELNET_SB = 250
+    TELNET_GA = 249
+    TELNET_EL = 248
+    TELNET_EC = 247
+    TELNET_AYT = 246
+    TELNET_AO = 245
+    TELNET_IP = 244
+    TELNET_BREAK = 243
+    TELNET_DM = 242
+    TELNET_NOP = 241
+    TELNET_SE = 240
+    TELNET_EOR = 239
+    TELNET_ABORT = 238
+    TELNET_SUSP = 237
+    TELNET_EOF = 236
 
-module Codes
+    # Telnet options.
+    TELNET_TELOPT_BINARY = 0
+    TELNET_TELOPT_ECHO = 1
+    TELNET_TELOPT_RCP = 2
+    TELNET_TELOPT_SGA = 3
+    TELNET_TELOPT_NAMS = 4
+    TELNET_TELOPT_STATUS = 5
+    TELNET_TELOPT_TM = 6
+    TELNET_TELOPT_RCTE = 7
+    TELNET_TELOPT_NAOL = 8
+    TELNET_TELOPT_NAOP = 9
+    TELNET_TELOPT_NAOCRD = 10
+    TELNET_TELOPT_NAOHTS = 11
+    TELNET_TELOPT_NAOHTD = 12
+    TELNET_TELOPT_NAOFFD = 13
+    TELNET_TELOPT_NAOVTS = 14
+    TELNET_TELOPT_NAOVTD = 15
+    TELNET_TELOPT_NAOLFD = 16
+    TELNET_TELOPT_XASCII = 17
+    TELNET_TELOPT_LOGOUT = 18
+    TELNET_TELOPT_BM = 19
+    TELNET_TELOPT_DET = 20
+    TELNET_TELOPT_SUPDUP = 21
+    TELNET_TELOPT_SUPDUPOUTPUT = 22
+    TELNET_TELOPT_SNDLOC = 23
+    TELNET_TELOPT_TTYPE = 24
+    TELNET_TELOPT_EOR = 25
+    TELNET_TELOPT_TUID = 26
+    TELNET_TELOPT_OUTMRK = 27
+    TELNET_TELOPT_TTYLOC = 28
+    TELNET_TELOPT_3270REGIME = 29
+    TELNET_TELOPT_X3PAD = 30
+    TELNET_TELOPT_NAWS = 31
+    TELNET_TELOPT_TSPEED = 32
+    TELNET_TELOPT_LFLOW = 33
+    TELNET_TELOPT_LINEMODE = 34
+    TELNET_TELOPT_XDISPLOC = 35
+    TELNET_TELOPT_ENVIRON = 36
+    TELNET_TELOPT_AUTHENTICATION = 37
+    TELNET_TELOPT_ENCRYPT = 38
+    TELNET_TELOPT_NEW_ENVIRON = 39
+    TELNET_TELOPT_MSDP = 69
+    TELNET_TELOPT_MSSP = 70
+    TELNET_TELOPT_COMPRESS = 85
+    TELNET_TELOPT_COMPRESS2 = 86
+    TELNET_TELOPT_MSP = 90
+    TELNET_TELOPT_MXP = 91
+    TELNET_TELOPT_MSP2 = 92
+    TELNET_TELOPT_MSP2_MUSIC = 0
+    TELNET_TELOPT_MSP2_SOUND = 1
 
-  IAC = 255  # Command  - RFC 854, 855, 1123, 1143
-
-  # 2 byte commands
-  WILL = 251  # Will do option
-  WONT = 252  # Wont do option
-  DO   = 253  # Do option
-  DONT = 254  # Dont do option
 
 
-  SB = 250  # Subnegotiation begin # IAC SB <option> <parameters> IAC SE
-  SE = 240  # Subnegotiation end
+    TELNET_TELOPT_ZMP = 93
+    TELNET_TELOPT_EXOPL = 255
 
-  # 1 byte commands
-  GA    = 249  # Go Ahead
-  NOP   = 241  # No-op
-  BRK   = 243  # Break
+    TELNET_TELOPT_MCCP2 = 86
 
-  # In RFC 854
-  AYT   = 246  # Are you there?
-  AO    = 245  # abort output
-  IP    = 244  # interrupt
-  EL    = 248  # erase current line
-  EC    = 247  # erase current character
+    # TERMINAL-TYPE codes. 
+    TELNET_TTYPE_IS = 0
+    TELNET_TTYPE_SEND = 1
 
-  DM    = 242  # data mark - sent to demarcate end of urgent commands
+    # NEW-ENVIRON/ENVIRON codes. 
+    TELNET_ENVIRON_IS = 0
+    TELNET_ENVIRON_SEND = 1
+    TELNET_ENVIRON_INFO = 2
+    TELNET_ENVIRON_VAR = 0
+    TELNET_ENVIRON_VALUE = 1
+    TELNET_ENVIRON_ESC = 2
+    TELNET_ENVIRON_USERVAR = 3
 
-  EOR   = 239 # end of record (transparent mode)
-  ABORT = 238 # Abort process
-  SUSP  = 237 # Suspend process
-  EOF   = 236 # End of file
+    # MSSP codes. 
+    TELNET_MSSP_VAR = 1
+    TELNET_MSSP_VAL = 2
 
-  # Options
-  BINARY         =   0 # Transmit Binary - RFC 856
-  ECHO           =   1 # Echo - RFC 857
-  RCP            =   2 # Reconnection
-  SGA            =   3 # Suppress Go Ahead - RFC 858
-  NAMS           =   4 # Approx Message Size Negotiation
-  STATUS         =   5 # Status - RFC 859
-  TM             =   6 # Timing Mark - RFC 860
-  RCTE           =   7 # Remote Controlled Trans and Echo - RFC 563, 726
-  NAOL           =   8 # Output Line Width
-  NAOP           =   9 # Output Page Size
-  NAOCRD         =  10 # Output Carriage-Return Disposition - RFC 652
-  NAOHTS         =  11 # Output Horizontal Tab Stops - RFC 653
-  NAOHTD         =  12 # Output Horizontal Tab Disposition - RFC 654
-  NAOFFD         =  13 # Output Formfeed Disposition - RFC 655
-  NAOVTS         =  14 # Output Vertical Tabstops - RFC 656
-  NAOVTD         =  15 # Output Vertical Tab Disposition - RFC 657
-  NAOLFD         =  16 # Output Linefeed Disposition - RFC 658
-  XASCII         =  17 # Extended ASCII - RFC 698
-  LOGOUT         =  18 # Logout - RFC 727
-  BM             =  19 # Byte Macro - RFC 735
-  DET            =  20 # Data Entry Terminal - RFC 732, 1043
-  SUPDUP         =  21 # SUPDUP - RFC 734, 736
-  SUPDUPOUTPUT   =  22 # SUPDUP Output - RFC 749
-  SNDLOC         =  23 # Send Location - RFC 779
-  TTYPE          =  24 # Terminal Type - RFC 1091
-  EOREC          =  25 # End of Record - RFC 885
-  TUID           =  26 # TACACS User Identification - RFC 927
-  OUTMRK         =  27 # Output Marking - RFC 933
-  TTYLOC         =  28 # Terminal Location Number - RFC 946
-  REGIME3270     =  29 # Telnet 3270 Regime - RFC 1041
-  X3PAD          =  30 # X.3 PAD - RFC 1053
-  NAWS           =  31 # Negotiate About Window Size - RFC 1073
-  TSPEED         =  32 # Terminal Speed - RFC 1079
-  LFLOW          =  33 # Remote Flow Control - RFC 1372
-  LINEMODE       =  34 # Linemode - RFC 1184
-  XDISPLOC       =  35 # X Display Location - RFC 1096
-  ENVIRON        =  36 # Environment Option - RFC 1408
-  AUTHENTICATION =  37 # Authentication Option - RFC 1416, 2941, 2942, 2943, 2951
-  ENCRYPT        =  38 # Encryption Option - RFC 2946
-  NEW_ENVIRON    =  39 # New Environment Option - RFC 1572
-  TN3270         =  40 # TN3270 Terminal Entry - RFC 2355
-  XAUTH          =  41 # XAUTH
-  CHARSET        =  42 # Charset option - RFC 2066
-  RSP            =  43 # Remote Serial Port
-  CPCO           =  44 # COM port Control Option - RFC 2217
-  SUPLECHO       =  45 # Suppress Local Echo
-  TLS            =  46 # Telnet Start TLS
-  KERMIT         =  47 # Kermit tranfer Option - RFC 2840
-  SENDURL        =  48 # Send URL
-  FORWARDX       =  49 # Forward X
-  PLOGON         = 138 # Telnet Pragma Logon
-  SSPI           = 139 # Telnet SSPI Logon
-  PHEARTBEAT     = 140 # Telnat Pragma Heartbeat
-  EXOPL          = 255 # Extended-Options-List - RFC 861
-
-  MSDP     = 69  # Mud Server Data Protocol
-  MSSP     = 70  # MUD Server Status Protocol
-  COMPRESS =  85 # MCCP 1 support (broken deprecated)
-  COMPRESS2 = 86 # MCCP 2 support
-  MSP  = 90 # MSP  support
-  MXP  = 91 # MUD eXtension Protocol (MXP)
-  MSP2 = 92 # MSP2 support
-    MUSIC = 0
-    SOUND = 1
-
-  ZMP = 93 # ZMP support
-  AARD = 102 # Aardwolf client protocol (deprecated?)
-  MULTIPLEX = 112 # Crystal client telnet multiplex 
-  ATCP = 200 # Achaea telnet client protocol
-  GMCP = 201 # GMCP/ATCP2 client protocol
+    # newline, cr and nul
+    TELNET_CR = 13
+    TELNET_NL = 10
+    TELNET_NUL = 0
+  end
 end
