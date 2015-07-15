@@ -171,6 +171,11 @@ module Monolog
     Monolog.log_va(file, line, :FATAL, format, *args)
   end
   
+  alias error log_error
+  alias warn log_warning
+  alias info log_info
+  alias error log_error
+  
   extend(self)
  end
  

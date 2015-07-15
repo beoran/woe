@@ -8,7 +8,8 @@ assert { Woe::Server }
 
 # Fork off the server so the Net::Telnet tests can procede
 pid = Process.fork do 
-  Woe::Server.run
+  Woe::Server.new
+  sleep
   # exit here to ge
   puts __FILE__ + ' Server Done'
   exit 0

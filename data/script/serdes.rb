@@ -62,6 +62,7 @@ module Serdes
       @serdes_loaded ||= {}
       return @serdes_loaded[id.to_sym]
     end
+        
 
     def serdes_load(id)
       return nil unless id && !id.empty?

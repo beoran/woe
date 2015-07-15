@@ -1,7 +1,7 @@
 # This module contains the contants used for Telnet
 # Based on code by Jon A. Lambert,  under the Zlib license.
  
-module Telnet
+class Telnet
   module Codes
     # Telnet commands
     TELNET_IAC = 255

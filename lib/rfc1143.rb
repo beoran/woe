@@ -3,6 +3,8 @@ require_relative 'telnet/codes'
 
 
 # rfc1143 state machine for telnet protocol
+# Thehandle_ functions handle input,
+# the send_ functions are for sending negotiations
 class RFC1143
   include Telnet::Codes
 
@@ -189,7 +191,74 @@ Upon receipt of WONT, we choose based upon him and himq:
       return :error, 'Already queued disable request'
     end
   end
+  
+  # advertise willingess to support an option 
+  def send_will
+    case @us
+    when :no
+      @us = :wantyes
+      return TELNET_WILL, @telopt
+    when :wantno
+      @us = :wantno_opposite
+    when :wantyes_opposite
+      @us = :wantyes
+    else
+      return nil, nil
+    end
+  end
+  
+  # force turn-off of locally enabled option
+  def send_wont
+    case @us
+    when :yes
+      @us = :wantno
+      return TELNET_WONT, @telopt
+    when :wantno_opposite
+      @us = :wantno
+      return nil, nil
+    when :wantyes
+      @us = :wantyes_opposite
+      return nil, nil
+    else
+      return nil, nil
+    end
+  end   
+
+  # ask remote end to enable an option
+  def send_do
+    case @him
+    when :no
+      @him = :wantyes
+      return TELNET_DO, @telopt
+    when :wantno
+      @him = :wantno_opposite
+      return nil, nil
+    when :wantyes_opposite
+      @us = :wantyes
+      return nil, nil
+    else
+      return nil, nil
+    end
+  end
+
+
+  # demand remote end disable an option
+  def send_dont
+    case @him
+    when :yes
+      @him = :wantno
+      return TELNET_DONT, @telopt
+    when :wantno_opposite
+      @him = :wantno
+      return nil, nil
+    when :wantyes
+      @him = :wantyes_opposite
+    else
+      return nil, nil
+    end
+  end
 end
   
+
 
 
