@@ -30,7 +30,13 @@ class Client
     @busy   = true
     # telnet event queue
     @telnet_events = []
-    @timeout_at   = nil
+    @timeout_at   = nil    
+  end
+  
+  # Closes up the client
+  def close
+    @telnet.close
+    @io.close
   end
   
   def alive?
@@ -41,8 +47,13 @@ class Client
     @fiber.resume(cmd, args)
   end
   
-  def write(data)
+  def write_raw(data)
     @io.write(data)
+  end
+  
+  
+  def write(data)
+    @telnet.send_escaped(data)
   end
   
  
@@ -80,7 +91,7 @@ class Client
   def telnet_send_data(buf)
     # @telnet_events << TelnetEvent.new(:command, buf)
     p "Sending telnet data."
-    self.write(buf)
+    self.write_raw(buf)
   end
   
   def process_telnet_events
@@ -88,8 +99,7 @@ class Client
   end
   
   def on_read    
-    data = @io.readpartial(4096)
-    p "After read: #{data}"
+    data = @io.readpartial(4096)    
     @io.flush
     @telnet.telnet_receive(data) 
     # now, the data and any telnet events are in @telnet_events
@@ -146,7 +156,7 @@ class Client
       @window_h, @window_w = *tev.data
       log_info("Client #{@id} window size #{@window_w}x#{@window_h}") 
     else
-      log_info('Telnet event #{tev} ignored')
+      log_info("Telnet event #{tev} ignored")
     end
   end
   
@@ -194,19 +204,46 @@ class Client
     end
   end
   
-  def setup_naws
-    # Negotiate NAWS (window size) support
-    @telnet.telnet_send_negotiate(TELNET_DO, TELNET_TELOPT_NAWS)
+  # generic negotiation
+  def setup_negotiate(command, option, yes_event, no_event)
+    @telnet.telnet_send_negotiate(command, option)
     tev = wait_for_input(0.5)
-    return nil unless tev
-    ask, cmd, opt = *tev.data
-    return tev unless tev.type == :will
+    return false, nil unless tev
+    return false, nil if tev.type == no_event
+    return false, tev unless tev.type == yes_event && tev.data[0] == option
+    return true, nil
+  end
+  
+  # Negotiate COMPRESS2 support
+  def setup_compress2
+    ok, tev = setup_negotiate(TELNET_WILL, TELNET_TELOPT_COMPRESS2, :do, :dont)
+    return tev unless ok    
+    @telnet.telnet_begin_compress2
+    log_info("Client #{@id} started COMPRESS2 compression")
+  end
+  
+  # Negotiate NAWS (window size) support
+  def setup_naws  
+    ok, tev = setup_negotiate(TELNET_DO, TELNET_TELOPT_NAWS, :will, :wont)
+    return tev unless ok
     tev2 = wait_for_input(0.5)
     return tev2 unless tev2 && tev2.type == :naws
     @window_h, @window_w = *tev2.data
     log_info("Client #{@id} window size #{@window_w}x#{@window_h}") 
     return nil
   end
+  
+  
+  # Negotiate MSSP (mud server status protocol) support
+  def setup_mssp
+    ok, tev = setup_negotiate(TELNET_WILL, TELNET_TELOPT_MSSP, :do, :dont)    
+    return tev unless ok
+    mssp = @server.mssp
+    @telnet.telnet_send_mssp(mssp)
+    return nil
+  end
+  
+  
   
   def setup_telnet
     loop do 
@@ -218,7 +255,8 @@ class Client
         break
       end
     end
-
+    setup_mssp
+    setup_compress2
     setup_naws
     
     #p "mssp ev #{tev}"

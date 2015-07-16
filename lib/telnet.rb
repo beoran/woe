@@ -27,6 +27,18 @@ class Telnet
     @state      = :data # state of telnet protocol parser.
     @sb_telopt  = nil;  # current subnegotiation
     @compress   = false # compression state
+    @zdeflate   = Zlib::Deflate.new() # Deflate stream for compression2 support.
+    @zinflate   = Zlib::Inflate.new() # Inflate stream for compression2 support.
+  end
+  
+  # Closes the telnet connection, send last compressed data if needed.
+  def close
+    if @compress 
+      zbuf = @zdeflate.flush(Zlib::FINISH)
+      @client.telnet_send_data(zbuf)
+    end
+    @zdeflate.close
+    @zinflate.close    
   end
   
   # Send an event to the client to notify it of a state change or of data
@@ -37,7 +49,9 @@ class Telnet
   # Sends unescaped data to client, possibly compressing it if needed
   def send_raw(buf)
     if @compress
-      zbuf = Zlib.deflate(buf)
+      @zdeflate << buf
+      zbuf = @zdeflate.flush(Zlib::SYNC_FLUSH)
+      p "Deflating #{buf} -> #{zbuf}"
     else
       zbuf = buf
     end
@@ -242,7 +256,7 @@ def subnegotiate_mssp(buffer)
         var = ""
         val = ""
       end      
-    when TELNET_MSSSP_VAL
+    when TELNET_MSSP_VAL
       mstate = :val
     else
       if mstate == :var
@@ -306,7 +320,7 @@ end
 # must be aborted and reprocessed due to COMPRESS2 being activated
 
 def do_subnegotiate(buffer)
-  case @sb_telopt
+  case @sb_teloptTELNET_MSSSP_VAR
   when TELNET_TELOPT_COMPRESS2
     # received COMPRESS2 begin marker, setup our zlib box and
     # start handling the compressed stream if it's not already.
@@ -460,12 +474,10 @@ end
   
   # Call this when the server receives data from the client
   def telnet_receive(data)
-    if @compress
-      zdat = Zlib.inflate(data)
-    else
-      zdat = data
-    end
-    process_bytes(zdat)
+    # the COMPRESS2 protocol seems to be half-duplex in that only 
+    # the server's data stream is compressed (unless maybe if the client
+    # is asked to also compress with a DO command ?)
+    process_bytes(data)
   end
   
   # Send a bytes array (raw) to the client
@@ -572,6 +584,18 @@ end
   def telnet_ttype_is(ttype)
     telnet_send_bytes(TELNET_IAC, TELNET_SB, TELNET_TELOPT_TTYPE, TELNET_TTYPE_IS)
     telnet_send(ttype)
+  end
+  
+  # send MSSP data
+  def telnet_send_mssp(mssp)
+    buf = ""
+    mssp.each do | key, val| 
+      buf << TELNET_MSSP_VAR.chr
+      buf << key
+      buf << TELNET_MSSP_VAL.chr
+      buf << val      
+    end
+    telnet_subnegotiation(TELNET_TELOPT_MSSP, buf)
   end
 
 end

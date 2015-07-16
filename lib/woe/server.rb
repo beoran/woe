@@ -1,6 +1,7 @@
 require 'socket'
 require 'fiber'
 require 'timeout'
+require 'time'
 
 require_relative '../monolog'
 
@@ -19,7 +20,61 @@ class Server
     @writing    = []
     @clients    = {}
     @client_id  = 0
+    # Used for MSSP 
+    @mssp       = {
+      "NAME"        => "Workers Of Eruta",
+      "UPTIME"      => Time.now.to_i.to_s,
+      "PLAYERS"     => "0",
+      "CRAWL DELAY" => "0",
+      "CODEBASE"    => "WOE",
+      "CONTACT"     => "beoran@gmail.com",
+      "CREATED"     => "2015",
+       "ICON"       => "None",
+      "LANGUAGE"    => "English",
+      "LOCATION"    => "USA",
+      "MINIMUM AGE" => "18",
+      "WEBSITE"     => "beoran.net",
+      "FAMILY"      => "Custom",
+      "GENRE"       => "Science Fiction",
+      "GAMEPLAY"    => "Adventure",
+      "STATUS"      => "Alpha",
+      "GAMESYSTEM"  => "Custom",
+      "INTERMUD"    => "",
+      "SUBGENRE"    => "None",
+      "AREAS"       => "0",
+      "HELPFILES"   => "0",
+      "MOBILES"     => "0",
+      "OBJECTS"     => "0",
+      "ROOMS"       => "1",
+      "CLASSES"     => "0",
+      "LEVELS"      => "0",
+      "RACES"       => "3",
+      "SKILLS"      => "900",
+      "ANSI"        => "1",
+      "MCCP"        => "1",
+      "MCP"         => "0",
+      "MSDP"        => "0",
+      "MSP"         => "0",
+      "MXP"         => "0",
+      "PUEBLO"      => "0",
+      "UTF-8"       => "1",
+      "VT100"       => "1",
+      "XTERM 255 COLORS" => "1",
+      "PAY TO PLAY"      => "0",
+      "PAY FOR PERKS"    => "0",
+      "HIRING BUILDERS"  => "0",
+      "HIRING CODERS"    => "0" 
+    }    
   end
+  
+  
+  # Returns the MSSP data
+  def mssp
+    @mssp["PLAYERS"] = @clients.size.to_s
+    return @mssp
+  end
+
+
   
   # Look for a free numeric client ID in the client hash.
   def get_free_client_id
@@ -70,7 +125,7 @@ class Server
       rsock = cl.io
       @clients.delete(id)
       @reading.delete(rsock)
-      rsock.close
+      cl.close
     end     
   end
   
@@ -115,9 +170,10 @@ class Server
             add_client
           # Kick out clients with broken connections.
           elsif rsock.eof?
-            @clients.delete(client_for_socket(rsock))
+            cli = client_for_socket(rsock)
+            @clients.delete(cli.id)
             @reading.delete(rsock)
-            rsock.close
+            cli.close
           else
             # Tell the client to get their read on.              
             client  = client_for_socket(rsock)
