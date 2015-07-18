@@ -77,7 +77,7 @@ module Sitef
   
   def self.load_filename(filename)
     results, errors = nil, nil, nil;
-    file = File.open(filename, 'rt')
+    file = File.open(filename, 'rt') rescue nil
     return nil, ["Could not open #{filename}"] unless file
     begin 
       results, errors = parse_file(file)

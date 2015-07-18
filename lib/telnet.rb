@@ -50,8 +50,10 @@ class Telnet
   def send_raw(buf)
     if @compress
       @zdeflate << buf
+      # for short messages the "compressed" stream wil actually be 
+      # bigger than the uncompressed one, but that's unavoidable
+      # due to the streaming nature of network connections.
       zbuf = @zdeflate.flush(Zlib::SYNC_FLUSH)
-      p "Deflating #{buf} -> #{zbuf}"
     else
       zbuf = buf
     end
@@ -136,6 +138,11 @@ class Telnet
   
   # Process a subnegotiation buffer for a naws event
   def subnegotiate_naws(buffer)
+    # Some clients, like Gnome-Mud can't even get this right. Grrr!
+    if buffer.nil? || buffer.empty? || buffer.size != 4
+      log_info("Bad NAWS negotiation: #{buffer}")
+      return nil
+    end
     arr   = buffer.bytes.to_a
     w     = (arr[0] << 8) + arr[1]
     h     = (arr[2] << 8) + arr[3]
@@ -320,7 +327,7 @@ end
 # must be aborted and reprocessed due to COMPRESS2 being activated
 
 def do_subnegotiate(buffer)
-  case @sb_teloptTELNET_MSSSP_VAR
+  case @sb_telopt
   when TELNET_TELOPT_COMPRESS2
     # received COMPRESS2 begin marker, setup our zlib box and
     # start handling the compressed stream if it's not already.
@@ -378,8 +385,8 @@ end
         @state = :dont
       # IAC escaping 
       when TELNET_IAC
-        @buffer << byte
-        send_raw(@buffer)
+        @buffer << TELNET_IAC.chr
+        send_event(:data, @buffer) unless @buffer.empty?
         @buffer = ""
         @state = :data
       # some other command

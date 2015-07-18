@@ -1,12 +1,19 @@
-script "serdes.rb"
+require_relative "../sitef.rb"
+require_relative "../serdes.rb"
+require_relative "../monolog.rb"
 
 
+module Woe
 class Account
   include Serdes
+  include Monolog
 
   serdes_reader :id
   serdes_reader :pass
   serdes_reader :algo
+  serdes_reader :email
+  serdes_reader :woe_points
+  
   
   def inspect
     "Account #{@id} #{@pass} #{algo}"
@@ -27,8 +34,8 @@ class Account
       return false
     end
   end
-  
-end
+end # class Account
+end # module Woe
 
 
 

@@ -1,4 +1,6 @@
 
+
+
 class Dir
   def self.mkdir_p(name)
     sub   = ""
@@ -69,7 +71,7 @@ module Serdes
       full_name = Serdes.serdes_full_for(self, id)
       data, errors  = Sitef.load_filename(full_name)
       unless data
-        log errors.join(", ")
+        # log_error(errors.join(", "))
         return nil
       end
       

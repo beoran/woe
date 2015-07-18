@@ -146,11 +146,11 @@ class Server
     return nil
   end
   
-   # Nodify clients that havea read timeout set
+   # Notify clients that have a read timeout set
   def handle_timeouts
     now = Time.now
     @clients.each  do |id, cl| 
-      if cl.timeout_at && cl.timeout_at > now
+      if cl.timeout?
         cl.command(:timeout, nil)
       end
     end
@@ -177,7 +177,9 @@ class Server
           else
             # Tell the client to get their read on.              
             client  = client_for_socket(rsock)
-            text    = client.command(:read, nil)
+            if client
+              text    = client.command(:read, nil)
+            end
           end
         end
       end

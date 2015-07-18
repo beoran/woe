@@ -86,6 +86,17 @@ class Telnet
     # TERMINAL-TYPE codes. 
     TELNET_TTYPE_IS = 0
     TELNET_TTYPE_SEND = 1
+    
+    # MTTS standard codes
+    TELNET_MTTS_ANSI                = 1
+    TELNET_MTTS_VT100               = 2
+    TELNET_MTTS_UTF8                = 4
+    TELNET_MTTS_256_COLORS          = 8
+    TELNET_MTTS_MOUSE_TRACKING      = 16
+    TELNET_MTTS_OSC_COLOR_PALETTE   = 32
+    TELNET_MTTS_SCREEN_READER       = 64
+    TELNET_MTTS_PROXY               = 128
+    
 
     # NEW-ENVIRON/ENVIRON codes. 
     TELNET_ENVIRON_IS = 0
@@ -99,7 +110,15 @@ class Telnet
     # MSSP codes. 
     TELNET_MSSP_VAR = 1
     TELNET_MSSP_VAL = 2
-
+    
+    # MSDP values.
+    TELNET_MSDP_VAR         = 1
+    TELNET_MSDP_VAL         = 2
+    TELNET_MSDP_TABLE_OPEN  = 3
+    TELNET_MSDP_TABLE_CLOSE = 4
+    TELNET_MSDP_ARRAY_OPEN  = 5
+    TELNET_MSDP_ARRAY_CLOSE = 6
+    
     # newline, cr and nul
     TELNET_CR = 13
     TELNET_NL = 10
