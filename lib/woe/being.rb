@@ -42,8 +42,17 @@ module Woe
     # Skills array
     serdes_reader   :skills
     
+    # Arts array
+    serdes_reader   :arts
+    
     # Affects array
     serdes_reader   :affects
+    
+    # Equipment array
+    serdes_reader   :equipment
+    
+    # Inventory
+    serdes_reader   :inventory
     
     # Derived stats 
     def force
