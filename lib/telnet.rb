@@ -559,14 +559,14 @@ end
     telnet_send(buf)
   end
 
-
+  CRLF  = "\r\n"
+  CRNUL = "\r\0"
+  
   # send formatted data with \r and \n translation in addition to IAC IAC 
   def telnet_printf(fmt, *args)
-    crlf  = "\r\n"
-    clnul = "\r\0"
     buf   = sprintf(fmt, *args)
-    buf.gsub!("\r", crnul)
-    buf.gsub!("\n", crlf)
+    buf.gsub!("\r", CRNUL)
+    buf.gsub!("\n", CRLF)
     telnet_send(buf)
   end
 

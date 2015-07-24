@@ -1,6 +1,8 @@
 require_relative "../sitef.rb"
 require_relative "../serdes.rb"
 require_relative "../monolog.rb"
+require_relative "../security.rb"
+
 
 
 module Woe
@@ -8,11 +10,11 @@ class Account
   include Serdes
   include Monolog
 
-  serdes_reader :id
-  serdes_reader :pass
-  serdes_reader :algo
-  serdes_reader :email
-  serdes_reader :woe_points
+  serdes_reader   :id
+  serdes_reader   :pass
+  serdes_reader   :algo
+  serdes_reader   :email
+  serdes_accessor :woe_points
   
   
   def inspect
@@ -29,7 +31,7 @@ class Account
     if algo == "plain"
       return @pass == trypass
     elsif algo == "crypt"
-      return crypt_challenge(trypass, @pass)
+      return crypt_challenge?(trypass, @pass)
     else
       return false
     end

@@ -66,7 +66,7 @@ class Client
   end
   
   def printf(fmt, *args)
-    @telnet.printf(fmt, *args)
+    @telnet.telnet_printf(fmt, *args)
   end
   
   def on_start
@@ -363,9 +363,13 @@ class Client
  
   LOGIN_RE = /\A[A-Za-z][A-Za-z0-9]*\Z/
   
-  def ask_something(prompt, re, nomatch_prompt)
+  def ask_something(prompt, re, nomatch_prompt, noecho=false)
     something = nil
     
+    if noecho
+      password_mode
+    end
+
     while  something.nil? || something.empty? 
       write("#{prompt}:")
       something = wait_for_command
@@ -377,8 +381,13 @@ class Client
         end
       end
     end
+    
+    if noecho
+      normal_mode
+    end
+    
     something.chomp!
-    true
+    return something
   end
   
   
@@ -390,20 +399,12 @@ class Client
   EMAIL_RE = /@/
 
   def ask_email
-    return ask_something("E-mail:", EMAIL_RE, "Email must have at least an @ in there somewhere.")
+    return ask_something("E-mail", EMAIL_RE, "Email must have at least an @ in there somewhere.")
   end
 
 
   def ask_password(prompt = "Password")
-    password = nil
-    password_mode
-    while  password.nil? || password.empty?
-      write("\r\n#{prompt}:")
-      password = wait_for_command
-    end
-    password.chomp!
-    normal_mode
-    true
+    return ask_something(prompt, nil, "", true) 
   end
   
   def handle_command
@@ -413,41 +414,65 @@ class Client
       write("Byebye!\r\n")
       @busy = false
     else
-      @server.broadcast("#@login said #{order}\r\n")
+      @server.broadcast("#{@account.id} said #{order}\r\n")
+    end
+  end
+  
+  def existing_account_dialog
+    pass  = ask_password
+    return false unless pass
+    unless @account.challenge?(pass)
+      printf("Password not correct!\n")
+      return false
+    end
+    return true
+  end
+  
+  def new_account_dialog(login)
+    while !@account 
+      printf("\nWelcome, %s! Creating new account...\n", login)
+      pass1  = ask_password
+      return false unless pass1
+      pass2 = ask_password("Repeat Password")
+      return false unless pass2
+      if pass1 != pass2
+        printf("\nPasswords do not match! Please try again!\n")
+        next
+      end
+      email = ask_email
+      return false unless email
+      @account = Woe::Account.new(:id => login, :email => email )
+      @account.password   = pass1
+      @account.woe_points = 7
+      unless @account.save_one
+        printf("\nFailed to save your account! Please contact a WOE administrator!\n")
+        return false
+      end
+      printf("\nSaved your account.\n")
+      return true
+    end
+  end
+  
+  def account_dialog
+    login  = ask_login
+    return false unless login
+    @account = Account.fetch(login)
+    if @account
+      return existing_account_dialog
+    else
+      return new_account_dialog(login)
     end
   end
  
   def serve()
     setup_telnet
-    login  = ask_login
-    return false unless login
-    @account = Account.fetch(login)
-    if @account
-      pass  = ask_password
-      return false unless pass
-      
-    else
-      while !@account 
-        printf("\nWelcome, %s! Creating new account...\n", login)
-        pass1  = ask_password
-        return false unless pass
-        pass2 = ask_password("Repeat Password:")
-        return false unless pass
-        if pass1 != pass2
-          printf("\nPasswords do not match.\n")
-          next
-        end
-        email = ask_email
-        return false unless email
-        
-        
-      
-      end
-      
-      
+    aok = account_dialog  
+    unless aok
+      printf "\nLogin failed. Breaking connection.\n"
+      return false
     end
     
-    write("\r\nWelcome #{@login} #{@password}!\r\n")
+    write("\r\nWelcome #{@account.id}!\r\n")
     while @busy do
       handle_command
     end
