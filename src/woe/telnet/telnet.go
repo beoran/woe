@@ -1,8 +1,12 @@
 package telnet
 
-import "bytes"
-import "compression/zlib"
+// import "bytes"
+import "io"
+import "strings"
+import "fmt"
+import "compress/zlib"
 import "github.com/beoran/woe/monolog"
+
 
 // This Telnet struct implements a subset of the Telnet protocol.
 
@@ -10,16 +14,17 @@ import "github.com/beoran/woe/monolog"
 type TelnetState int
 
 const (
-    data_state TelnetState  = iota,
-    iac_state               = iota,
-    will_state              = iota,
-    wont_state              = iota,
-    do_state                = iota,
+    data_state TelnetState  = iota
+    iac_state               = iota
+    will_state              = iota
+    wont_state              = iota
+    do_state                = iota
     dont_state              = iota
-    sb_state                = iota,
-    sb_data_state           = iota,
+    sb_state                = iota
+    sb_data_state           = iota
     sb_data_iac_state       = iota
 )
+
 
 
 // Telnet event types
@@ -50,7 +55,7 @@ type TTypeEvent struct {
 func (me TTypeEvent) isEvent() {}
 
 
-type SubnegotioateEvent struct {
+type SubnegotiateEvent struct {
     Telopt    byte
     Buffer [] byte
 }
@@ -65,16 +70,23 @@ type IACEvent struct {
 func (me IACEvent) isEvent() {}
 
 
-type CompressionEvent struct {
+type CompressEvent struct {
     Compress  bool
 }
 
-func (me CompressionEvent) isEvent() {}
+func (me CompressEvent) isEvent() {}
+
+
+//Storage for environment values
+type Environment struct {
+    Type byte
+    Value string
+}
 
 
 type EnvironmentEvent struct {
     Telopt    byte
-    Vars      map[string] string
+    Vars      [] Environment
 }
 
 func (me EnvironmentEvent) isEvent() {}
@@ -89,14 +101,99 @@ func (me MSSPEvent) isEvent() {}
 
 
 type ZMPEvent struct {
-    Telopt    byte
-    Vars      map[string] string
+    Vars      []string
 }
 
 func (me ZMPEvent) isEvent() {}
 
+type WillEvent struct {
+    Telopt byte
+}
 
-type EventChannel chan[Event]
+func (me WillEvent) isEvent() {}
+
+type WontEvent struct {
+    Telopt byte
+}
+
+func (me WontEvent) isEvent() {}
+
+
+type DoEvent struct {
+    Telopt byte
+}
+
+func (me DoEvent) isEvent() {}
+
+type DontEvent struct {
+    Telopt byte
+}
+
+func (me DontEvent) isEvent() {}
+
+
+// Telnet event type constants
+type EventType int
+
+const (
+    TELNET_DATA_EVENT           EventType =  iota
+    TELNET_NAWS_EVENT           EventType =  iota
+    TELNET_TTYPE_EVENT          EventType =  iota
+    TELNET_SUBNEGOTIATE_EVENT   EventType =  iota
+    TELNET_IAC_EVENT            EventType =  iota
+    TELNET_COMPRESS_EVENT       EventType =  iota
+    TELNET_ENVIRONMENT_EVENT    EventType =  iota
+    TELNET_MSSP_EVENT           EventType =  iota
+    TELNET_ZMP_EVENT            EventType =  iota
+    TELNET_WILL_EVENT           EventType =  iota
+    TELNET_WONT_EVENT           EventType =  iota
+    TELNET_DO_EVENT             EventType =  iota
+    TELNET_DONT_EVENT           EventType =  iota
+    TELNET_UNKNOWN_EVENT        EventType =  iota
+)
+
+
+/* Returns the numerical event type of an event. Useful for direct comparison. */
+func EventTypeOf(event Event) EventType {
+    switch event.(type) {
+        case DataEvent:
+            return TELNET_DATA_EVENT
+        case NAWSEvent:
+            return TELNET_NAWS_EVENT
+        case TTypeEvent:
+            return TELNET_TTYPE_EVENT
+        case SubnegotiateEvent:
+            return TELNET_SUBNEGOTIATE_EVENT
+        case IACEvent:
+            return TELNET_IAC_EVENT
+        case CompressEvent:
+            return TELNET_COMPRESS_EVENT
+        case EnvironmentEvent:
+            return TELNET_ENVIRONMENT_EVENT
+        case MSSPEvent:
+            return TELNET_MSSP_EVENT
+        case ZMPEvent:
+            return TELNET_ZMP_EVENT
+        case WillEvent:
+            return TELNET_WILL_EVENT
+        case WontEvent:
+            return TELNET_WONT_EVENT
+        case DoEvent:
+            return TELNET_DO_EVENT
+        case DontEvent:
+            return TELNET_DONT_EVENT
+        default:
+            return TELNET_UNKNOWN_EVENT
+    }
+}
+
+// Returns true if the event is of the given type, or false if not
+func IsEventType(event Event, typ EventType) bool {
+    return EventTypeOf(event) == typ;
+}
+
+
+type EventChannel chan(Event)
 
 
 type Telopt struct {
@@ -106,28 +203,29 @@ type Telopt struct {
 }
     
 type Telnet struct { 
-  Events            EventChannel  
+  Events            EventChannel
+  ToClient          chan([]byte)
   telopts map[byte] Telopt 
   state             TelnetState 
   compress          bool
-  zwriter           Writer
-  zreader           Reader
+  zwriter           zlib.Writer
+  zreader           io.ReadCloser
   buffer          []byte
   sb_telopt         byte
 }
 
-func New() telnet * Telnet {
+func New() (telnet * Telnet) {
+    
     events     := make(EventChannel, 64)
+    toclient   := make(chan([]byte), 64)
     telopts    := make (map[byte] Telopt)
     state      := data_state
     compress   := false
-    zwriter    := nil
-    zreader    := nil
-    buffer     := make([]byte, 1024, 1024)
-    sb_telopt  := 0
-    telnet      = &Telnet { events, telopts, state, compress, 
-        zwriter, zreader, buffer, sb_telopt
-    }
+    var zwriter zlib.Writer
+    var zreader io.ReadCloser
+    var buffer []byte = nil
+    sb_telopt  := byte(0)
+    telnet      = &Telnet { events, toclient, telopts, state, compress, zwriter, zreader, buffer, sb_telopt }
     return telnet
 }
 
@@ -146,13 +244,13 @@ func (me * Telnet) Close() {
 }
 
 // Filters raw text, only compressing it if needed. 
-func (me * Telnet) FilterRaw(in []byte, out chan []byte) {
+func (me * Telnet) SendRaw(in []byte) {
     // XXX Handle compression here later
-    out <- in
+    me.ToClient <- in
 } 
 
 // Filters text, escaping IAC bytes. 
-func (me * Telnet) FilterRaw(in []byte, out chan []byte) {
+func (me * Telnet) SendEscaped(in []byte) {
     buffer := make([]byte, len(in) * 2, len(in) * 2) 
     outdex := 0
     /* Double IAC characters to escape them. */
@@ -162,492 +260,498 @@ func (me * Telnet) FilterRaw(in []byte, out chan []byte) {
             buffer[outdex] = TELNET_IAC; 
             outdex++;    
         }
-        buffer[outdex] = TELNET_IAC;
+        buffer[outdex] = now;
         outdex++;
     }
-    out <- buffer
+    me.SendRaw(buffer)
 } 
 
 // Send negotiation bytes
-func (me * Telnet) SendNegotiate(cmd byte, telopt byte, out chan []byte) {
+func (me * Telnet) SendNegotiate(cmd byte, telopt byte) {
     buffer      := make([]byte, 3)
     buffer[0]    = TELNET_IAC
     buffer[1]    = cmd
     buffer[2]    = telopt
-    me.FilterRaw(buffer, out)
-}    
+    me.SendRaw(buffer)
+}
+
+func (me * Telnet) SendEvent(event Event) {
+    me.Events <- event
+}
    
 // Parse a subnegotiation buffer for a naws event
-func (me * Telnet) SubnegotiateNAWS(buffer []byte,  )
+func (me * Telnet) SubnegotiateNAWS(buffer []byte) {
     // Some clients, like Gnome-Mud can't even get this right. Grrr!
-    // XXx continue here
-    if buffer.nil? || buffer.empty? || buffer.size != 4
-      monolog.Info("Bad NAWS negotiation: #{buffer}")
-      return nil
-    end
-    arr   = buffer.bytes.to_a
-    w     = (arr[0] << 8) + arr[1]
-    h     = (arr[2] << 8) + arr[3]
-    send_event(:naws, w, h)
-  end
-  
+    if buffer == nil || len(buffer) != 4 {
+      monolog.Warning("Bad NAWS negotiation: #{buffer}")
+      return
+    }
+    var w int   = (int(buffer[0]) << 8) + int(buffer[1])
+    var h int   = (int(buffer[2]) << 8) + int(buffer[3])
+    me.SendEvent(&NAWSEvent{w, h})
+}
 
-  # Storage for environment values
-  class Environment 
-    attr_accessor :type
-    attr_accessor :value
+// process an ENVIRON/NEW-ENVIRON subnegotiation buffer
+func (me * Telnet) SubnegotiateEnviron(buffer []byte) {
+    var vars []Environment
+    var cmd []byte
+    fb   := buffer[0]  
+    // First byte must be a valid command 
+    if fb != TELNET_ENVIRON_SEND && fb != TELNET_ENVIRON_IS && fb != TELNET_ENVIRON_INFO {
+      monolog.Warning("telopt environment subneg command not valid")
+    }
     
-    def initialize(type, value)
-      me.type   = type
-      me.value  = value
-    end
-  end
-
-
-  # process an ENVIRON/NEW-ENVIRON subnegotiation buffer
-  def subnegotiate_environ(buffer)
-    vars  = []
-    cmd   = ""
-    arr   = buffer.bytes.to_a
-    fb    = arr.first  
-    # first byte must be a valid command 
-    if fb != TELNET_ENVIRON_SEND && fb != TELNET_ENVIRON_IS && fb != TELNET_ENVIRON_INFO
-      log_error("telopt environment subneg command not valid")
-      return 0
-    end
+    cmd = append(cmd, fb)   
     
-    cmd << fb    
-    
-    if (buffer.size == 1) 
-      send_event(:environment, fb, vars)
-      return false
-    end
+    if len(buffer) == 1 { 
+      me.SendEvent(&EnvironmentEvent{fb, vars})
+      return
+    }
         
-    # Second byte must be VAR or USERVAR, if present
-    sb = arr[1]
-    if sb != TELNET_ENVIRON_VAR && fb != TELNET_ENVIRON_USEVAR
-      log_error("telopt environment subneg missing variable type")
-      return false
-    end
+    // Second byte must be VAR or USERVAR, if present
+    sb := buffer[1]
+    if sb != TELNET_ENVIRON_VAR && fb != TELNET_ENVIRON_USERVAR {
+      monolog.Warning("telopt environment subneg missing variable type")
+      return
+    }
     
-    # ensure last byte is not an escape byte (makes parsing later easier) 
-    lb = arr.last
-    if lb == TELNET_ENVIRON_ESC
-      log_error("telopt environment subneg ends with ESC")
-      return false
-    end
+    // ensure last byte is not an escape byte (makes parsing later easier) 
+    lb := buffer[len(buffer) - 1]
+    if lb == TELNET_ENVIRON_ESC {
+      monolog.Warning("telopt environment subneg ends with ESC")
+      return
+    }
 
-    var    = nil
-    index  = 1
-    escape = false
+/* XXX : not implemented yet
+    var variable * Environment = nil
+    index           := 1
+    escape          := false
     
-    arr.shift
-    
-    arr.each do | c | 
-      case c
-      when TELNET_ENVIRON_VAR
-      when TELNET_ENVIRON_VALUE
-      when TELNET_ENVIRON_USERVAR
-        if escape
-          escape = false
-          var.value << c
-        elsif var
-          vars << var
-          var = Environment.new(c, "")
-        else
-          var = Environment.new(c, "")        
-        end
-      when TELNET_ENVIRON_ESC
+    for index := 1 ; index < len(buffer) ; index++ {
+      c := buffer[index]  
+      switch c {
+        case TELNET_ENVIRON_VAR: 
+            fallthrough
+        case TELNET_ENVIRON_VALUE:
+            fallthrough
+        case TELNET_ENVIRON_USERVAR:
+            if escape {
+                escape = false
+                variable.Value  = append(variable.Value, c)
+            } else if (variable != nil) {
+                vars            = append(vars, variable)
+                variable        = new(Environment)
+                variable.Type   = c
+            } else {
+                variable        = new(Environment)
+                variable.Type   = c
+            }
+      case TELNET_ENVIRON_ESC:
         escape = true
-      else
-        var.value << c  
-      end # case
-    end # each
+      default:
+        variable.Value = append(variable.Value, c)
+      }
+    }
+    // Finally send event
+    me.SendEvent(&EnvironmentEvent{fb, vars})
+*/
+}
+
+
+const (
+    MSTATE_NONE = 0
+    MSTATE_VAR  = 1
+    MSTATE_VAL  = 2
+)
+
+// process an MSSP subnegotiation buffer
+func (me * Telnet) SubnegotiateMSSP(buffer []byte) {
+    if len(buffer) < 1 {
+        return
+    }
+  
+    fb    := buffer[0]  
+    // first byte must be a valid command
+    if fb != TELNET_MSSP_VAR {
+        monolog.Warning("telopt MSSP subneg data not valid")
+        return
+    }
+  
+    variables := make(map[string] string)
+    var variable []byte
+    var value []byte
+    mstate := MSTATE_NONE
     
-    send_event(:environment, fb, vars)    
-    return false
-  end
-
-
-
-# process an MSSP subnegotiation buffer
-def subnegotiate_mssp(buffer)
-  telnet_event_t ev;
-  struct telnet_environ_t *values;
-  char *var = 0;
-  char *c, *last, *out;
-  size_t i, count;
-  unsigned char next_type;
-  
-  if buffer.size < 1
-    return 0
-  end
-  
-  arr   = buffer.bytes.to_a
-  fb    = arr.first  
-  # first byte must be a valid command
-  if fb != TELNET_MSSSP_VAR
-    log_error("telopt MSSP subneg data not valid")
-    return false
-  end
-  
-  vars    = {}
-  var     = ""
-  val     = ""
-  mstate  = :var
-  while index <  arr.size
-    c     = arr[index]
-    case c
-    when TELNET_MSSP_VAR
-      mstate = :var
-      if mstate == :val
-        vars[var] = val
-        var = ""
-        val = ""
-      end      
-    when TELNET_MSSP_VAL
-      mstate = :val
-    else
-      if mstate == :var
-        var << c  
-      elsif mstate == :val
-        val << c  
-      end      
-    end # case
-    index += 1
-  end # while
-  
-  send_event(:mssp, vars)
-  return false
-end
-
-
-# parse ZMP command subnegotiation buffers 
-def subnegotiate_zmp(buffer)
-  args = []
-  arg  = ""
-  
-  buffer.each_byte do |b|  
-    if b == 0
-      args << arg
-      arg = ""
-    else
-      arg << byte
-    end
-  end
-  send_event(:zmp, vars)
-  return false
-end
-
-# parse TERMINAL-TYPE command subnegotiation buffers
-def subnegotiate_ttype(buffer)
-  # make sure request is not empty
-  if buffer.size == 0
-    log_error("Incomplete TERMINAL-TYPE request");
-    return 0
-  end
-  
-  arr   = buffer.bytes
-  fb    = arr.first
-  term  = nil 
-  
-  if fb == TELNET_TTYPE_IS
-    term = buffer[1, buffer.size]
-    send_event(:ttype_is, term)
-  elsif fb == TELNET_TTYPE_SEND
-    term = buffer[1, buffer.size]
-    send_event(:ttype_send, term)
-  else
-    log_error("TERMINAL-TYPE request has invalid type")
-    return false
-  end
-  return false
-end
-
-
-# process a subnegotiation buffer; returns true if the current buffer
-# must be aborted and reprocessed due to COMPRESS2 being activated
-
-def do_subnegotiate(buffer)
-  case me.sb_telopt
-  when TELNET_TELOPT_COMPRESS2
-    # received COMPRESS2 begin marker, setup our zlib box and
-    # start handling the compressed stream if it's not already.
-    me.compress = true
-    send_event(:compress, me.compress)
-    return true
-  # specially handled subnegotiation telopt types
-  when TELNET_TELOPT_ZMP
-    return subnegotiate_zmp(buffer)
-  when TELNET_TELOPT_TTYPE
-    return subnegotiate_ttype(buffer)
-  when TELNET_TELOPT_ENVIRON  
-    return subnegotiate_environ(buffer)
-  when TELNET_TELOPT_NEW_ENVIRON
-    return subnegotiate_environ(buffer)
-  when TELNET_TELOPT_MSSP
-    return subnegotiate_mssp(buffer)
-  when TELNET_TELOPT_NAWS
-    return subnegotiate_naws(buffer)
-  else
-    send_event(:subnegotiate, me.sb_telopt, buffer)
-    return false
-  end
-end
-
-
-  
-  def process_byte(byte) 
-    # p "process_byte, #{me.state} #{byte}"
-    case me.state
-    # regular data
-    when :data
-      if byte == TELNET_IAC
-        # receive buffered bytes as data and go to IAC state if it's notempty
-        send_event(:data, me.buffer) unless me.buffer.empty?
-        me.buffer = ""
-        me.state = :iac
-      else
-        me.buffer << byte
-      end
-    # IAC received before
-    when :iac
-      case byte
-      # subnegotiation
-      when TELNET_SB
-        me.state = :sb
-      # negotiation commands
-      when TELNET_WILL
-        me.state = :will
-      when TELNET_WONT
-        me.state = :wont
-      when TELNET_DO
-        me.state = :do
-      when TELNET_DONT
-        me.state = :dont
-      # IAC escaping 
-      when TELNET_IAC
-        me.buffer << TELNET_IAC.chr
-        send_event(:data, me.buffer) unless me.buffer.empty?
-        me.buffer = ""
-        me.state = :data
-      # some other command
-      else
-        send_event(:iac, byte)
-        me.state = :data
-      end
-
-    # negotiation received before
-    when :will, :wont, :do, :dont
-      do_negotiate(byte)
-      me.state = :data
-    # subnegotiation started, determine option to subnegotiate
-    when :sb
-      me.sb_telopt = byte
-      me.state     = :sb_data
-    # subnegotiation data, buffer bytes until the end request 
-    when :sb_data
-      # IAC command in subnegotiation -- either IAC SE or IAC IAC
-      if (byte == TELNET_IAC)
-        me.state = :sb_data_iac
-      elsif (me.sb_telopt == TELNET_TELOPT_COMPRESS && byte == TELNET_WILL)
-        # MCCPv1 defined an invalid subnegotiation sequence (IAC SB 85 WILL SE) 
-        # to start compression. Catch and discard this case, only support 
-        # MMCPv2.
-        me.state = data
-      else 
-        me.buffer << byte
-      end
-
-    # IAC received inside a subnegotiation
-    when :sb_data_iac
-      case byte
-        # end subnegotiation
-        when TELNET_SE
-          me.state = :data
-          # process subnegotiation
-          compress = do_subnegotiate(me.buffer)
-          # if compression was negotiated, the rest of the stream is compressed
-          # and processing it requires decompressing it. Return true to signal 
-          # this.
-          me.buffer = ""
-          return true if compress
-        # escaped IAC byte
-        when TELNET_IAC
-        # push IAC into buffer */
-          me.buffer << byte
-          me.state = :sb_data
-        # something else -- protocol error.  attempt to process
-        # content in subnegotiation buffer, then evaluate the
-        # given command as an IAC code.
-        else
-          log_error("Unexpected byte after IAC inside SB: %d", byte)
-          me.state = :iac
-          # subnegotiate with the buffer anyway, even though it's an error
-          compress = do_subnegotiate(me.buffer)
-          # if compression was negotiated, the rest of the stream is compressed
-          # and processing it requires decompressing it. Return true to signal 
-          # this.
-          me.buffer = ""
-          return true if compress
-        end
-    when :data  
-      # buffer any other bytes
-      me.buffer << byte
-    else 
-      # programing error, shouldn't happen
-      raise "Error in telet state machine!"
-    end
-    # return false to signal compression needn't start
-    return false
-  end
-  
-  def process_bytes(bytes)
-    # I have a feeling this way of handling strings isn't very efficient.. :p
-    arr = bytes.bytes.to_a
-    byte = arr.shift
-    while byte
-      compress = process_byte(byte)
-      if compress
-        # paper over this for a while... 
-        new_bytes = Zlib.inflate(arr.pack('c*')) rescue nil
-        if new_bytes
-          arr = new_bytes.bytes.to_a
-        end
-      end
-      byte = arr.shift    
-    end
-    send_event(:data, me.buffer) unless me.buffer.empty?
-    me.buffer = ""
-  end
-  
-  # Call this when the server receives data from the client
-  def telnet_receive(data)
-    # the COMPRESS2 protocol seems to be half-duplex in that only 
-    # the server's data stream is compressed (unless maybe if the client
-    # is asked to also compress with a DO command ?)
-    process_bytes(data)
-  end
-  
-  # Send a bytes array (raw) to the client
-  def telnet_send_bytes(*bytes)
-    s     = bytes.pack('C*')
-    send_raw(s)
-  end
-  
-  # send an iac command 
-  def telnet_send_iac(cmd)
-    telnet_send_bytes(TELNET_IAC, cmd)
-  end
-
-  # send negotiation
-  def telnet_send_negotiate(cmd, telopt)
-    # get current option states
-    q = rfc1143_get(telopt)
-    unless q
-      rfc1143_set(telopt)
-      q = rfc1143_get(telopt)
-    end
-    
-    act, arg = nil, nil
-    case cmd
-      when TELNET_WILL
-        act, arg = q.send_will
-      when TELNET_WONT
-        act, arg = q.send_wont
-      when TELNET_DO
-        act, arg = q.send_do
-      when TELNET_DONT
-        act, arg = q.send_dont    
-    end
+    for index := 0 ; index <  len(buffer) ; index ++ {
+        c     := buffer[index]
         
-    return false unless act    
-    telnet_send_bytes(TELNET_IAC, act, telopt)
-  end
+        switch c {
+            case TELNET_MSSP_VAR:
+            mstate = MSTATE_VAR
+            if mstate == MSTATE_VAR {
+                variables[string(variable)] = string(value)
+                variable = nil
+                value    = nil
+            }
+            case TELNET_MSSP_VAL:
+                mstate = MSTATE_VAL
+            default:
+                if mstate == MSTATE_VAL {
+                    variable = append(variable, c)
+                } else {
+                    value = append(value, c)
+                }  
+        }
+    }
+    me.SendEvent(&MSSPEvent{fb, variables})
+}
+
+
+// Parse ZMP command subnegotiation buffers 
+func (me * Telnet) SubnegotiateZMP(buffer []byte) {
+  var vars []string
+  var variable []byte
+  var b byte
+  for index := 0 ; index < len(buffer) ; index++ {
+      b = buffer[index]
+      if b == 0 {
+        vars     = append(vars, string(variable))
+        variable = nil
+      } else {
+        variable = append(variable, b)
+      }  
+  }
+  me.SendEvent(&ZMPEvent{vars})
+}
+
+// parse TERMINAL-TYPE command subnegotiation buffers
+func (me * Telnet) SubnegotiateTType(buffer []byte) {
+  // make sure request is not empty
+  if len(buffer) == 0 {
+    monolog.Warning("Incomplete TERMINAL-TYPE request");
+    return 
+  }
+  
+  fb    := buffer[0]
+  if fb != TELNET_TTYPE_IS || fb != TELNET_TTYPE_SEND {
+    monolog.Warning("TERMINAL-TYPE request has invalid type")
+    return
+  }
+  
+  term := string(buffer[1:])
+  me.SendEvent(&TTypeEvent{fb, term})
+}
+
+
+// process a subnegotiation buffer; returns true if the current buffer
+// must be aborted and reprocessed due to COMPRESS2 being activated
+func (me * Telnet) DoSubnegotiate(buffer []byte) bool {
+    switch me.sb_telopt {
+        case TELNET_TELOPT_COMPRESS2:
+        // received COMPRESS2 begin marker, setup our zlib box and
+        // start handling the compressed stream if it's not already.
+        me.compress = true
+        me.SendEvent(&CompressEvent{me.compress})
+        return true
+        // specially handled subnegotiation telopt types
+        case TELNET_TELOPT_TTYPE:
+            me.SubnegotiateTType(buffer)
+        case TELNET_TELOPT_ENVIRON:
+            me.SubnegotiateEnviron(buffer)
+        case TELNET_TELOPT_NEW_ENVIRON:
+            me.SubnegotiateEnviron(buffer)
+        case TELNET_TELOPT_MSSP:
+            me.SubnegotiateMSSP(buffer)
+        case TELNET_TELOPT_NAWS:
+            me.SubnegotiateNAWS(buffer)
+        case TELNET_TELOPT_ZMP:
+            me.SubnegotiateZMP(buffer)
+        default:    
+            // Send catch all subnegotiation event
+            me.SendEvent(&SubnegotiateEvent{me.sb_telopt, buffer})
+    }
+    return false
+}
+
+func (me * Telnet) DoNegotiate(state TelnetState, telopt byte) bool {
+    switch me.state {
+        case will_state:
+            me.SendEvent(&WillEvent{telopt})
+        case wont_state:
+            me.SendEvent(&WontEvent{telopt})
+        case do_state:
+            me.SendEvent(&DoEvent{telopt})
+        case dont_state:
+            me.SendEvent(&DontEvent{telopt})
+        default:
+            monolog.Warning("State not vvalid in  telnet negotiation.")
+    }
+    me.state = data_state
+    return false
+}
+
+// Send the current buffer as a DataEvent if it's not empty
+// Also empties the buffer if it wasn't emmpty
+func (me * Telnet) maybeSendDataEventAndEmptyBuffer() {
+    if (me.buffer != nil) && (len(me.buffer) > 0) {
+        me.SendEvent(&DataEvent{me.buffer})
+        me.buffer = nil
+    }
+}
+
+// Append a byte to the data buffer
+// Also empties the buffer if it wasn't emmpty
+func (me * Telnet) appendByte(bin byte) {
+    monolog.Debug("Appending to telnet buffer: %d %d", len(me.buffer), cap(me.buffer))
+    me.buffer = append(me.buffer, bin)
+}
+
+// Process a byte in the data state 
+func (me * Telnet) dataStateProcessByte(bin byte) bool {
+    if bin == TELNET_IAC {
+        // receive buffered bytes as data and go to IAC state if it's notempty
+        me.maybeSendDataEventAndEmptyBuffer()
+        me.state = iac_state
+    } else {
+        me.appendByte(bin)
+    }
+    return false
+}
+
+// Process a byte in the IAC state 
+func (me * Telnet) iacStateProcessByte(bin byte) bool {
+    switch bin {
+      // subnegotiation
+      case TELNET_SB:
+        me.state = sb_state
+      // negotiation commands
+      case TELNET_WILL:
+        me.state = will_state
+      case TELNET_WONT:
+        me.state = wont_state
+      case TELNET_DO:
+        me.state = do_state
+      case TELNET_DONT:
+        me.state = dont_state
+      // IAC escaping
+      case TELNET_IAC:
+        me.appendByte(TELNET_IAC)
+        me.maybeSendDataEventAndEmptyBuffer()
+        me.state = data_state
+      // some other command
+      default:
+        me.SendEvent(IACEvent { bin })
+        me.state = data_state
+    }
+    return false      
+}
+
+
+// Process a byte in the subnegotiation data state 
+func (me * Telnet) sbdataStateProcessByte(bin byte) bool {
+    // IAC command in subnegotiation -- either IAC SE or IAC IAC
+    if (bin == TELNET_IAC)  {
+        me.state = sb_data_iac_state
+    } else if me.sb_telopt == TELNET_TELOPT_COMPRESS &&  bin == TELNET_WILL {
+        // MCCPv1 defined an invalid subnegotiation sequence (IAC SB 85 WILL SE) 
+        // to start compression. Catch and discard this case, only support 
+        // MMCPv2.
+        me.state = data_state
+    } else {
+        me.appendByte(bin)
+    }
+    return false
+}
+
+// Process a byte in the IAC received when processing subnegotiation data state 
+func (me * Telnet) sbdataiacStateProcessByte(bin byte) bool {
+    switch bin { 
+        //end subnegotiation
+        case TELNET_SE:
+        me.state = data_state
+        // process subnegotiation
+        compress := me.DoSubnegotiate(me.buffer)
+        // if compression was negotiated, the rest of the stream is compressed
+        // and processing it requires decompressing it. Return true to signal 
+        // this.
+        me.buffer = nil
+        if compress {
+            return true 
+        }
+            
+        // escaped IAC byte
+        case TELNET_IAC:
+        // push IAC into buffer
+        me.appendByte(bin)
+        me.state = sb_data_state
+        // something else -- protocol error.  attempt to process
+        // content in subnegotiation buffer, then evaluate the
+        // given command as an IAC code.
+        default:
+        monolog.Warning("Unexpected byte after IAC inside SB: %d", bin)
+        me.state = iac_state
+        // subnegotiate with the buffer anyway, even though it's an error
+        compress := me.DoSubnegotiate(me.buffer)
+        // if compression was negotiated, the rest of the stream is compressed
+        // and processing it requires decompressing it. Return true to signal 
+        // this.
+        me.buffer = nil
+        if compress {
+            return true 
+        }
+    }
+    return false    
+}
+
+
+// Process a single byte received from the client 
+func (me * Telnet) ProcessByte(bin byte) bool {
+    monolog.Info("ProcessByte %d %d", bin, me.state)
+    switch me.state {
+    // regular data
+        case data_state:
+        return me.dataStateProcessByte(bin)
+    // IAC received before
+        case iac_state:
+        return me.iacStateProcessByte(bin)
+        case will_state, wont_state, do_state, dont_state:
+        return me.DoNegotiate(me.state, bin)
+        // subnegotiation started, determine option to subnegotiate
+        case sb_state:
+        me.sb_telopt = bin      
+        me.state     = sb_data_state
+        // subnegotiation data, buffer bytes until the end request 
+        case sb_data_state:
+        return me.sbdataStateProcessByte(bin)
+        // IAC received inside a subnegotiation
+        case sb_data_iac_state:
+        return me.sbdataiacStateProcessByte(bin)
+        default:
+            //  programing error, shouldn't happen
+            panic("Error in telnet state machine!")        
+    }
+    // return false to signal compression needn't start
+    return false
+}
+ 
+// Process multiple bytes received from the client
+func (me * Telnet) ProcessBytes(bytes []byte) {
+    for index := 0 ; index < len(bytes) ; {
+        bin := bytes[index]
+        compress := me.ProcessByte(bin)
+        if compress {
+            // paper over this for a while... 
+            // new_bytes = Zlib.inflate(arr.pack('c*')) rescue nil
+            // if new_bytes
+            //arr = new_bytes.bytes.to_a
+        }
+        index ++
+    }
+    me.maybeSendDataEventAndEmptyBuffer()
+}
+
+  
+// Call this when the server receives data from the client
+func (me * Telnet) TelnetReceive(data []byte) {
+// the COMPRESS2 protocol seems to be half-duplex in that only 
+// the server's data stream is compressed (unless maybe if the client
+// is asked to also compress with a DO command ?)
+    me.ProcessBytes(data)
+}
+
+// Send a bytes array (raw) to the client
+func (me * Telnet) TelnetSendBytes(bytes ...byte) {
+    me.SendRaw(bytes)
+}
+
+// Send an iac command 
+func (me * Telnet) TelnetSendIac(cmd byte) {
+    me.TelnetSendBytes(TELNET_IAC, cmd)
+}
+
+// Send negotiation. Currently rfc1143 is not implemented, so beware of 
+// server client loops. The simplest way to avoid those is to never answer any 
+// client requests, only send server requests.
+func (me * Telnet) TelnetSendNegotiate(cmd byte, telopt byte) {
+    me.TelnetSendBytes(TELNET_IAC, cmd, telopt)
+}
         
-
-  # send non-command data (escapes IAC bytes)
-  def telnet_send(buffer)
-    send_escaped(buffer)
-  end
+// Send non-command data (escapes IAC bytes)
+func (me * Telnet) TelnetSend(buffer []byte) {
+    me.SendEscaped(buffer)
+}
   
-  # send subnegotiation header
-  def telnet_begin_sb(telopt)
-    telnet_send_bytes(TELNET_IAC, TELNET_SB, telopt)
-  end
-
-  # send subnegotiation ending
-  def telnet_end_sb()
-    telnet_send_bytes(TELNET_IAC, TELNET_SE)
-  end
+// send subnegotiation header
+func (me * Telnet) TelnetBeginSubnegotiation(telopt byte) {
+    me.TelnetSendBytes(TELNET_IAC, TELNET_SB, telopt)
+}
 
 
-  # send complete subnegotiation
-  def telnet_subnegotiation(telopt, buffer = nil)
-    telnet_send_bytes(TELNET_IAC, TELNET_SB, telopt)
-    telnet_send(buffer) if buffer;
-    telnet_send_bytes(TELNET_IAC, TELNET_SE)
-  end
+// send subnegotiation ending
+func (me * Telnet) TelnetEndSubnegotiation() {
+    me.TelnetSendBytes(TELNET_IAC, TELNET_SE)
+}
+
+// Send complete subnegotiation
+func (me * Telnet) TelnetSubnegotiation(telopt byte, buffer []byte) {
+    me.TelnetBeginSubnegotiation(telopt)
+    if buffer != nil {
+        me.TelnetSend(buffer) 
+    }
+    me.TelnetEndSubnegotiation()
+}
   
-  # start compress2 compression
-  def telnet_begin_compress2() 
-    telnet_send_bytes(TELNET_IAC, TELNET_SB, TELNET_TELOPT_COMPRESS2, TELNET_IAC, TELNET_SE);
+// Ask client to start accepting compress2 compression
+func (me * Telnet) TelnetBeginCompress2() {
+    me.TelnetSendBytes(TELNET_IAC, TELNET_SB, TELNET_TELOPT_COMPRESS2, TELNET_IAC, TELNET_SE);
     me.compress = true
-  end
-  
-  # send formatted data
-  def telnet_raw_printf(fmt, *args)
-    buf   = sprintf(fmt, *args)
-    telnet_send(buf)
-  end
+}
 
-  CRLF  = "\r\n"
-  CRNUL = "\r\0"
-  
-  # send formatted data with \r and \n translation in addition to IAC IAC 
-  def telnet_printf(fmt, *args)
-    buf   = sprintf(fmt, *args)
-    buf.gsub!("\r", CRNUL)
-    buf.gsub!("\n", CRLF)
-    telnet_send(buf)
-  end
+// Send formatted data to the client
+func (me * Telnet) TelnetRawPrintf(format string, args ...interface{}) {
+    buf  := fmt.Sprintf(format, args...)
+    me.TelnetSend([]byte(buf))
+}
 
-  # begin NEW-ENVIRON subnegotation
-  def telnet_begin_newenviron(cmd)
-    telnet_begin_sb(TELNET_TELOPT_NEW_ENVIRON)
-    telnet_send_bytes(cmd)
-  end
+const CRLF  = "\r\n"
+const CRNUL = "\r\000"
   
-  # send a NEW-ENVIRON value
-  def telnet_newenviron_value(type, value)
-    telnet_send_bytes(type)
-    telnet_send(string)
-  end
-  
-  # send TERMINAL-TYPE SEND command
-  def telnet_ttype_send() 
-    telnet_send_bytes(TELNET_IAC, TELNET_SB, TELNET_TELOPT_TTYPE, TELNET_TTYPE_SEND, TELNET_IAC, TELNET_SE)
-  end  
-  
-  # send TERMINAL-TYPE IS command 
-  def telnet_ttype_is(ttype)
-    telnet_send_bytes(TELNET_IAC, TELNET_SB, TELNET_TELOPT_TTYPE, TELNET_TTYPE_IS)
-    telnet_send(ttype)
-  end
-  
-  # send MSSP data
-  def telnet_send_mssp(mssp)
-    buf = ""
-    mssp.each do | key, val| 
-      buf << TELNET_MSSP_VAR.chr
-      buf << key
-      buf << TELNET_MSSP_VAL.chr
-      buf << val      
-    end
-    telnet_subnegotiation(TELNET_TELOPT_MSSP, buf)
-  end
+// send formatted data with \r and \n translation in addition to IAC IAC 
+// escaping
+func (me * Telnet) TelnetPrintf(format string, args ...interface{}) {
+    buf  := fmt.Sprintf(format, args...)
+    buf   = strings.Replace(buf, "\r", CRNUL, -1)
+    buf   = strings.Replace(buf, "\n", CRLF , -1)
+    me.TelnetSend([]byte(buf))
+}
 
-end
+// NEW-ENVIRON subnegotation
+func (me * Telnet) TelnetNewenviron(cmd []byte) {
+    me.TelnetSubnegotiation(TELNET_TELOPT_NEW_ENVIRON, cmd)
+}
+
+// send TERMINAL-TYPE SEND command
+func (me * Telnet)  TelnetTTypeSend() {
+    me.TelnetSendBytes(TELNET_IAC, TELNET_SB, TELNET_TELOPT_TTYPE, TELNET_TTYPE_SEND, TELNET_IAC, TELNET_SE)
+}
+
+// send TERMINAL-TYPE IS command 
+func (me * Telnet)  TelnetTTypeIS(ttype string) {
+    me.TelnetSendBytes(TELNET_IAC, TELNET_SB, TELNET_TELOPT_TTYPE, TELNET_TTYPE_IS)
+    me.TelnetSend([]byte(ttype))
+}
+
+// send MSSP data
+func (me * Telnet) TelnetSendMSSP(mssp map[string] string) {
+    var buf []byte 
+    for key, val := range mssp { 
+      buf = append(buf, TELNET_MSSP_VAR)
+      buf = append(buf, key...)
+      buf = append(buf, TELNET_MSSP_VAL)
+      buf = append(buf, val...)
+    }
+    me.TelnetSubnegotiation(TELNET_TELOPT_MSSP, buf)
+}
 
 
 
