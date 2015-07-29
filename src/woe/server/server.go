@@ -6,9 +6,11 @@ import (
     "net"
   //  "errors"
     "os"
-   "time"
-   "fmt"
-   "github.com/beoran/woe/monolog"
+    "math/rand"
+    "time"
+    "fmt"
+    "path/filepath"
+    "github.com/beoran/woe/monolog"
 )
 
 var MSSP map[string] string
@@ -210,6 +212,9 @@ func (me * Server) onConnect(conn net.Conn) (err error) {
 }
 
 func (me * Server) Serve() (err error) { 
+    // Setup random seed here, or whatever
+    rand.Seed(time.Now().UTC().UnixNano())
+    
     go me.handleDisconnectedClients()
     
     for (me.alive) {
@@ -230,3 +235,30 @@ func (me * Server) Broadcast(message string) {
         }
     }       
 }
+
+
+// Returns the data path of the server
+func (me * Server) DataPath() string {
+    // 
+    cwd, err := os.Getwd();
+    if  err != nil {
+        cwd = "."
+    }
+    
+    return filepath.Join(cwd, "data", "var")
+}
+
+// Returns the script path of the server
+func (me * Server) ScriptPath() string {
+    // 
+    cwd, err := os.Getwd();
+    if err != nil {
+        cwd = "."
+    }
+    
+    return filepath.Join(cwd, "data", "script")
+}
+
+
+
+

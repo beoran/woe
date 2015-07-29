@@ -9,6 +9,7 @@ import (
     // "io"
     "github.com/beoran/woe/monolog"
     "github.com/beoran/woe/telnet"
+    "github.com/beoran/woe/world"
 )
 
 /* Specific properties of a client. */
@@ -39,6 +40,7 @@ type Client struct {
     timechan chan time.Time 
     telnet * telnet.Telnet
     info     ClientInfo
+    account* world.Account
 }
 
 
@@ -48,7 +50,7 @@ func NewClient(server * Server, id int, conn net.Conn) * Client {
     timechan := make (chan time.Time, 32)
     telnet   := telnet.New()
     info     := ClientInfo{-1, -1, 0, false, false, false, false, false, false, false, false, nil, "none"}
-    return &Client{server, id, conn, true, -1, datachan, errchan, timechan, telnet, info}
+    return &Client{server, id, conn, true, -1, datachan, errchan, timechan, telnet, info, nil}
 }
 
 func (me * Client) Close() {
@@ -86,6 +88,16 @@ func (me * Client) ServeRead() {
 
 
 func (me * Client) TryReadEvent(millis int) (event telnet.Event, timeout bool, close bool) {
+    var timerchan <-chan(time.Time)
+    
+    if millis >= 0 {
+        timerchan = time.Tick(time.Millisecond * time.Duration(millis))
+    } else {
+        /* If tiome is negative, block by using a fake time channel that never gets sent anyting */
+        timerchan = make(<-chan(time.Time))
+    }
+    
+    
     select {
         case event := <- me.telnet.Events:
             return event, false, false
@@ -95,7 +107,7 @@ func (me * Client) TryReadEvent(millis int) (event telnet.Event, timeout bool, c
             me.Close()
             return nil, false, true
             
-        case _ = <- time.Tick(time.Millisecond * time.Duration(millis)):
+        case _ = <- timerchan:
             return nil, true, false
     }
 }
@@ -125,10 +137,18 @@ func (me * Client) Serve() (err error) {
     go me.ServeWrite()
     go me.ServeRead()
     me.SetupTelnet()
+    if (!me.AccountDialog()) {
+        time.Sleep(3); 
+        // sleep so output gets flushed, hopefully. Also slow down brute force attacks.
+        me.Close()
+        return nil
+    }
+    
+    me.Printf("Welcome, %s\n", me.account.Name)
     
     for (me.alive) {
-        
-        
+        me.HandleCommand()
+        /*
         data, _, _ := me.TryRead(3000)
         
         if data == nil {
@@ -136,6 +156,7 @@ func (me * Client) Serve() (err error) {
         } else {
             me.server.Broadcast(string(data))
         }
+        */ 
         
     }
     return nil
