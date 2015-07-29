@@ -156,33 +156,34 @@ const (
 /* Returns the numerical event type of an event. Useful for direct comparison. */
 func EventTypeOf(event Event) EventType {
     switch event.(type) {
-        case DataEvent:
+        case DataEvent, *DataEvent:
             return TELNET_DATA_EVENT
-        case NAWSEvent:
+        case NAWSEvent, *NAWSEvent:
             return TELNET_NAWS_EVENT
-        case TTypeEvent:
+        case TTypeEvent, *TTypeEvent:
             return TELNET_TTYPE_EVENT
-        case SubnegotiateEvent:
+        case SubnegotiateEvent, *SubnegotiateEvent:
             return TELNET_SUBNEGOTIATE_EVENT
-        case IACEvent:
+        case IACEvent, *IACEvent:
             return TELNET_IAC_EVENT
-        case CompressEvent:
+        case CompressEvent, *CompressEvent:
             return TELNET_COMPRESS_EVENT
-        case EnvironmentEvent:
+        case EnvironmentEvent, *EnvironmentEvent:
             return TELNET_ENVIRONMENT_EVENT
-        case MSSPEvent:
+        case MSSPEvent, *MSSPEvent:
             return TELNET_MSSP_EVENT
-        case ZMPEvent:
+        case ZMPEvent, *ZMPEvent:
             return TELNET_ZMP_EVENT
-        case WillEvent:
+        case WillEvent, *WillEvent:
             return TELNET_WILL_EVENT
-        case WontEvent:
+        case WontEvent, *WontEvent:
             return TELNET_WONT_EVENT
-        case DoEvent:
+        case DoEvent, *DoEvent:
             return TELNET_DO_EVENT
-        case DontEvent:
+        case DontEvent, *DontEvent:
             return TELNET_DONT_EVENT
         default:
+            monolog.Error("Unknown event type %T %v", event, event)
             return TELNET_UNKNOWN_EVENT
     }
 }
@@ -433,8 +434,8 @@ func (me * Telnet) SubnegotiateTType(buffer []byte) {
   }
   
   fb    := buffer[0]
-  if fb != TELNET_TTYPE_IS || fb != TELNET_TTYPE_SEND {
-    monolog.Warning("TERMINAL-TYPE request has invalid type")
+  if fb != TELNET_TTYPE_IS && fb != TELNET_TTYPE_SEND {
+    monolog.Warning("TERMINAL-TYPE request has invalid type %d (%v)", fb, buffer)
     return
   }
   
@@ -606,7 +607,7 @@ func (me * Telnet) sbdataiacStateProcessByte(bin byte) bool {
 
 // Process a single byte received from the client 
 func (me * Telnet) ProcessByte(bin byte) bool {
-    monolog.Info("ProcessByte %d %d", bin, me.state)
+    monolog.Debug("ProcessByte %d %d", bin, me.state)
     switch me.state {
     // regular data
         case data_state:

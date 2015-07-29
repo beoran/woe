@@ -22,13 +22,15 @@ func (me * Client) SetupNegotiate(millis int, command byte, option byte, yes_eve
         return false, nil
     }
     
-    if telnet.IsEventType(tev, no_event) {
-        monolog.Info("Negative event no_event %v %v", tev, no_event)
+    evtype := telnet.EventTypeOf(tev)
+    
+    if evtype == no_event {
+        monolog.Info("Negative event no_event %v %v %v", tev, evtype, no_event)
         return false, tev
     }
     
-    if !telnet.IsEventType(tev, yes_event) {
-        monolog.Info("Unexpected event yes_event %v %v", tev, yes_event)
+    if evtype != yes_event {
+        monolog.Info("Unexpected event yes_event %v %v %v", tev, evtype, yes_event)
         return false, tev
     }
     
@@ -62,11 +64,13 @@ func (me * Client) SetupNAWS() telnet.Event {
         return tev2
     }
     
-    nawsevent := tev.(telnet.NAWSEvent)
-    me.info.w = nawsevent.W
-    me.info.h = nawsevent.H
-    monolog.Info("Client %d window size #{%d}x#{%d}", me.id, me.info.w, me.info.h) 
-    me.info.naws     = true
+    nawsevent, ok := tev2.(*telnet.NAWSEvent)
+    if ok {
+        me.info.w = nawsevent.W
+        me.info.h = nawsevent.H
+        monolog.Info("Client %d window size #{%d}x#{%d}", me.id, me.info.w, me.info.h) 
+        me.info.naws     = true
+    }
     return nil
 }
  
@@ -118,8 +122,11 @@ func (me * Client) SetupMSDP() telnet.Event {
 }
 
 func (me * Client) HasTerminal(name string) bool {
+    monolog.Debug("Client %d supports terminals? %s %v", me.id, name, me.info.terminals)
     for index := range me.info.terminals {
-        return me.info.terminals[index] == name
+        if (me.info.terminals[index] == name) {
+            return true
+        }
     }
     return false
 }
@@ -146,19 +153,23 @@ func (me * Client)  SetupTType() telnet.Event {
         // insist on spamming useless NUL characters
         // here... So we have to retry a few times to get a ttype_is
         // throwing away any undesirable junk in between.
-        for index := 0 ; index < 3 ; index++ {
-            tev2, _, _ := me.TryReadEvent(1000)
-        
+        GET_TTYPE: for index := 0 ; index < 3 ; index++ {
+            tev2, _, _ = me.TryReadEvent(1000)
+            etyp := telnet.EventTypeOf(tev2)
+            monolog.Info("Waiting for TTYPE: %T %v %d", tev2, tev2, etyp)
             if tev2 != nil && telnet.IsEventType(tev2, t.TELNET_TTYPE_EVENT) {
-                break
+                monolog.Info("TTYPE received: %T %v %d", tev2, tev2, etyp)
+                break GET_TTYPE
             }
         }
         
         if tev2 == nil || !telnet.IsEventType(tev2, t.TELNET_TTYPE_EVENT) {
+            etyp := telnet.EventTypeOf(tev2)
+            monolog.Warning("Received no TTYPE: %T %v %d", tev2, tev2, etyp)
             return tev2
         }
         
-        ttypeevent := tev.(*telnet.TTypeEvent)
+        ttypeevent := tev2.(*telnet.TTypeEvent)
         now = ttypeevent.Name
         if (!me.HasTerminal(now)) {
             me.info.terminals = append(me.info.terminals, now)
@@ -167,16 +178,21 @@ func (me * Client)  SetupTType() telnet.Event {
     }
     
     monolog.Info("Client %d supports terminals %v", me.id, me.info.terminals)
+    monolog.Info("Client %d active terminal %v", me.id, me.info.terminal)
+
     //  MTTS support
     for i := range me.info.terminals {
         term := me.info.terminals[i]
+        monolog.Info("Checking MTTS support: %s", term)
         if strings.HasPrefix(term, "MTTS ") {
             // it's an mtts terminal
             strnum := strings.TrimPrefix(term, "MTTS ")
             num, err := strconv.Atoi(strnum)
-            if err != nil {
+            if err == nil {
                 me.info.mtts = num
                 monolog.Info("Client %d supports mtts %d", me.id, me.info.mtts)                
+            } else {
+                monolog.Warning("Client %d could not parse mtts %s %v", me.id, strnum, err)
             }
         }
     }
