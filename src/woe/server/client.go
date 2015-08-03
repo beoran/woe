@@ -49,7 +49,7 @@ func NewClient(server * Server, id int, conn net.Conn) * Client {
     errchan  := make (chan error, 1)
     timechan := make (chan time.Time, 32)
     telnet   := telnet.New()
-    info     := ClientInfo{-1, -1, 0, false, false, false, false, false, false, false, false, nil, "none"}
+    info     := ClientInfo{w : -1, h : -1, terminal: "none"}
     return &Client{server, id, conn, true, -1, datachan, errchan, timechan, telnet, info, nil}
 }
 
@@ -137,6 +137,9 @@ func (me * Client) Serve() (err error) {
     go me.ServeWrite()
     go me.ServeRead()
     me.SetupTelnet()
+    if me.server.World != nil {
+        me.Printf(me.server.World.MOTD)
+    }
     if (!me.AccountDialog()) {
         time.Sleep(3); 
         // sleep so output gets flushed, hopefully. Also slow down brute force attacks.

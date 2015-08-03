@@ -11,6 +11,7 @@ import (
     "fmt"
     "path/filepath"
     "github.com/beoran/woe/monolog"
+    "github.com/beoran/woe/world"
 )
 
 var MSSP map[string] string
@@ -73,7 +74,8 @@ type Server struct {
     logfile             * os.File
     clients map[int]    * Client 
     tickers map[string] * Ticker
-    alive                 bool                
+    alive                 bool
+    World               * world.World             
 }
 
 
@@ -85,6 +87,34 @@ type Ticker struct {
     callback        func(me * Ticker, t time.Time) (stop bool)
 }
 
+
+const DEFAULT_MOTD =
+
+`
+###############################
+#       Workers Of Eruta      # 
+###############################
+
+`
+
+
+func (me * Server) SetupWorld() error {
+    /*
+    me.World, _ = world.LoadWorld(me.DataPath(), "WOE")
+    if me.World == nil {
+        monolog.Info("Creating new default world...")
+        me.World = world.NewWorld("WOE", DEFAULT_MOTD)
+        err := me.World.Save(me.DataPath())
+        if err != nil {
+            monolog.Error("Could not save world: %v", err)
+            return err
+        } else {
+            monolog.Info("Saved default world.")
+        }
+    }
+    */
+    return nil
+}
 
 
 func NewServer(address string) (server * Server, err error) {
@@ -102,10 +132,12 @@ func NewServer(address string) (server * Server, err error) {
     clients := make(map[int] * Client)
     tickers := make(map[string] * Ticker)
 
-    server = &Server{address, listener, logger, logfile, clients, tickers, true}    
+    server = &Server{address, listener, logger, logfile, clients, tickers, true, nil}    
+    err = server.SetupWorld()
     server.AddDefaultTickers()
     
-    return server, nil
+    
+    return server, err
 }
 
 func (me * Server) Close() {

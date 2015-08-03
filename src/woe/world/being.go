@@ -5,80 +5,144 @@ import (
     "strings"
 )
 
-type BeingKind int
+/* Aptitudes of a being, species or profession */
+type Aptitudes struct {
+    Skills      []BeingSkill
+    Arts        []BeingArt
+    Techniques  []BeingTechnique
+    Exploits    []BeingExploit
+}
 
-const (
-    BEING_KIND_NONE BeingKind = iota
-    BEING_KIND_CHARACTER
-    BEING_KIND_MANTUH
-    BEING_KIND_NEOMAN
-    BEING_KIND_HUMAN    
-    BEING_KIND_CYBORG
-    BEING_KIND_ANDROID    
-    BEING_KIND_NONCHARACTER
-    BEING_KIND_MAVERICK
-    BEING_KIND_ROBOT
-    BEING_KIND_BEAST
-    BEING_KIND_SLIME
-    BEING_KIND_BIRD
-    BEING_KIND_REPTILE
-    BEING_KIND_FISH
-    BEING_KIND_CORRUPT    
-    BEING_KIND_NONHUMAN
-)
-
-func (me BeingKind) ToString() string {
-    switch me {
-        case BEING_KIND_NONE:       return "None"
-        case BEING_KIND_CHARACTER:  return "Character"
-        case BEING_KIND_MANTUH:     return "Mantuh"
-        case BEING_KIND_NEOMAN:     return "Neoman"
-        case BEING_KIND_HUMAN:      return "Human"    
-        case BEING_KIND_CYBORG:     return "Cyborg"
-        case BEING_KIND_ANDROID:    return "Android"
-        case BEING_KIND_NONCHARACTER: return "Non Character"
-        case BEING_KIND_MAVERICK:   return "Maverick"
-        case BEING_KIND_ROBOT:      return "Robot"
-        case BEING_KIND_BEAST:      return "Beast"
-        case BEING_KIND_SLIME:      return "Slime"
-        case BEING_KIND_BIRD:       return "Bird"
-        case BEING_KIND_REPTILE:    return "Reptile"
-        case BEING_KIND_FISH:       return "Fish"
-        case BEING_KIND_CORRUPT:    return "Corrupted"
-        default: return ""
-    }
-    return ""
+/* Kind of a being*/
+type BeingKind struct {
+    Entity
+    // Talent modifiers of the species
+    Talents
+    // Vitals modifiers of the species
+    Vitals
+    Aptitudes 
+    // Arts multiplier in %. If zero arts cannot be used.
+    Arts        float64
+    // If players can choose this or not
+    Playable    bool
 }
 
 
-type BeingProfession int
-
-const (
-    BEING_PROFESSION_NONE       BeingProfession = iota
-    BEING_PROFESSION_OFFICER
-    BEING_PROFESSION_WORKER
-    BEING_PROFESSION_ENGINEER
-    BEING_PROFESSION_HUNTER
-    BEING_PROFESSION_SCHOLAR
-    BEING_PROFESSION_MEDIC
-    BEING_PROFESSION_CLERIC  
-    BEING_PROFESSION_ROGUE
-)
-
-func (me BeingProfession) ToString() string {
-    return ""
+func NewBeingKind(id ID, name string) * BeingKind {
+    res := new(BeingKind)
+    res.ID = id;
+    res.Name = name
+    return res
 }
 
+/* Profession of a being */
+type Profession struct {
+    Entity
+    // Talent modifiers of the profession
+    Talents
+    // Vitals modifiers of the profession
+    Vitals
+    Aptitudes    
+}
+
+
+/* Gender of a being */
+type Gender struct {
+    Entity
+    // Talent modifiers of the gender
+    Talents
+    // Vitals modifiers of the gender
+    Vitals
+}
+
+/* Struct, list and map of all genders in WOE. */
+var Genders = struct {
+    Female          Gender
+    Male            Gender
+    Intersex        Gender 
+    Genderless      Gender
+}{
+    Gender {
+    Entity : Entity{ ID: "female", Name: "Female"},
+    Talents : Talents { Agility: 1, Charisma: 1 }, 
+    }, 
+
+    Gender { 
+    Entity : Entity{ ID: "male", Name: "Male"},
+    Talents : Talents { Strength: 1, Intelligence: 1 },
+    }, 
+
+    Gender {
+    Entity : Entity{ ID: "intersex", Name: "Intersex"},
+    Talents : Talents { Dexterity: 1, Wisdom: 1 }, 
+    },
+
+    Gender {
+    Entity : Entity{ ID: "genderless", Name: "Genderless"},
+    Talents : Talents { Toughness: 1, Wisdom: 1 }, 
+    },
+    
+}
+
+
+var GenderList  = []*Gender{&Genders.Female, &Genders.Male, 
+    &Genders.Intersex, &Genders.Genderless }
+
+var GenderMap = map[ID]*Gender {
+    Genders.Female.ID       : &Genders.Female,
+    Genders.Male.ID         : &Genders.Male,
+    Genders.Intersex.ID     : &Genders.Intersex,
+    Genders.Genderless.ID   : &Genders.Genderless,
+}
+
+
+
+/* All BeingKinds of  WOE */
+var BeingKindList = [] BeingKind {  
+    {   Entity: Entity {
+            ID: "kin_", Name: "Human",
+            Short: "The primordial conscious beings on Earth.",
+            Long: 
+            `Humans are the primordial kind of conscious beings on Earth. The excel at nothing in particular, but are fast learners.`,      
+        },
+        // No talents because humans get no talent bonuses
+        // No stats either because no bonuses there either.
+        Arts : 1.0,
+        Playable : true,
+    },
+}
+
+
+
+
+
+
+
+
+
+
+
+type LabeledPointer struct {
+    ID ID
+    labeled * Labeled
+}
+
+type GenderPointer struct {
+    ID ID
+    gender * Gender
+}
+
+//}
 
 /* Vital statistic of a Being. */
 type Vital struct {
-    Now int
-    Max int
+    Now int `xml:"N,attr"`
+    Max int `xml:"X,attr"`
 }
 
 /* Report a vital statistic as a Now/Max string */
 func (me * Vital) ToNowMax() string {
-    return fmt.Sprintf("%d/%d", me.Now , me.Max)
+    return fmt.Sprintf("%4d/%4d", me.Now , me.Max)
 }
 
 // alias of the above, since I'm lazy at times
@@ -101,39 +165,52 @@ func (me * Vital) ToBar(full string, empty string, length int) string {
 }
 
 
+type Talents struct {
+    Strength        int     `xml:"Talents>STR,omitempty"`
+    Toughness       int     `xml:"Talents>TOU,omitempty"`
+    Agility         int     `xml:"Talents>AGI,omitempty"`
+    Dexterity       int     `xml:"Talents>DEX,omitempty"`
+    Intelligence    int     `xml:"Talents>INT,omitempty"`
+    Wisdom          int     `xml:"Talents>WIS,omitempty"`
+    Charisma        int     `xml:"Talents>CHA,omitempty"`
+    Essence         int     `xml:"Talents>ESS,omitempty"`
+}
+  
 
-type Being struct {
-    Entity
-    
-    // Essentials
-    Kind            BeingKind
-    Profession      BeingProfession
-    Level           int
-    
-    
-    // Talents
-    Strength        int
-    Toughness       int
-    Agility         int
-    Dexterity       int
-    Intelligence    int
-    Wisdom          int
-    Charisma        int
-    Essence         int
-        
-    // Vitals
+type Vitals struct {
     HP              Vital
     MP              Vital
     JP              Vital
     LP              Vital
-        
-    // Equipment values
+}
+
+type EquipmentValues struct {
     Offense         int
     Protection      int
     Block           int
     Rapidity        int
     Yield           int
+}
 
+
+type Being struct {
+    Entity
+    
+    // Essentials
+    Gender          
+    BeingKind    
+    Profession
+    Level           int
+    
+    // A being has talents.
+    Talents
+    // A being has vitals
+    Vitals
+    // A being has Equipment values
+    EquipmentValues
+    // A being has aptitudes
+    Aptitudes
+    
     // Skills array
     // Skills       []Skill
        
@@ -146,7 +223,11 @@ type Being struct {
     // Equipment
     
     // Inventory
-    // Inventory 
+    Inventory         Inventory
+    
+    // Location pointer
+    room            * Room
+    
 }
 
 // Derived stats 
@@ -196,7 +277,7 @@ func (me * Being) ToPrompt() string {
 
 // Generates an overview of the essentials of the being as a string.
 func (me * Being) ToEssentials() string {
-    return fmt.Sprintf("%s %d %s %s", me.Name, me.Level, me.Kind, me.Profession)
+    return fmt.Sprintf("%s lvl %d %s %s %s", me.Name, me.Level, me.Gender.Name, me.BeingKind.Name, me.Profession.Name)
 }
 
 // Generates an overview of the physical talents of the being as a string.
@@ -224,6 +305,22 @@ func (me * Being) ToStatus() string {
     status += "\n"
       return status
 }
+
+func (me *Being) Type() string {
+    return "being"
+}
+
+func (me *Being) Save(datadir string) {
+    SaveSavable(datadir, me)
+}
+
+func LoadBeing(datadir string, nameid string) * Being {    
+    res, _  := LoadLoadable(datadir, nameid, new(Being)).(*Being)
+    return res
+}
+
+
+
 
 
 
