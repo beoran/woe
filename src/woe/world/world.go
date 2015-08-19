@@ -25,8 +25,8 @@ type World struct {
     
     /* Skills, etc that exist in this world */
     genders         map[ID] *Gender    
-    species         map[ID] *BeingKind
-    professions     map[ID] *Profession
+    kins            map[ID] *Kin
+    professions     map[ID] *Job
     skills          map[ID] *Skill
     arts            map[ID] *Art
     techniques      map[ID] *Technique
@@ -34,8 +34,8 @@ type World struct {
     
     /* Botha array and map are needed for serialization. */
     Genders         [] Gender
-    Species         [] BeingKind
-    Professions     [] Profession
+    Kins            [] Kin
+    Jobs     [] Job
     Skills          [] Skill
     Arts            [] Art
     Techniques      [] Technique
@@ -45,14 +45,14 @@ type World struct {
 
 
 
-func (me * World) AddBeingKind(toadd * BeingKind) {
-    me.species[toadd.ID] = toadd
-    me.Species = append(me.Species, *toadd)
+func (me * World) AddKin(toadd * Kin) {
+    me.kins[toadd.ID] = toadd
+    me.Kins = append(me.Kins, *toadd)
 }
 
-func (me * World) AddProfession(toadd * Profession) {
+func (me * World) AddJob(toadd * Job) {
     me.professions[toadd.ID] = toadd
-    me.Professions = append(me.Professions, *toadd)
+    me.Jobs = append(me.Jobs, *toadd)
 }
 
 func (me * World) AddSkill(toadd * Skill) {
@@ -90,7 +90,7 @@ func NewWorld(name string, motd string) (*World) {
     world := new(World)
     world.Name = name
     world.MOTD = motd
-    world.species = make(map[ID] *BeingKind)
+    world.kins = make(map[ID] *Kin)
     
     world.AddWoeDefaults()
     return world;
@@ -129,7 +129,7 @@ func (me * World) Save(dirname string) (err error) {
 }
 
 func (me * World) onLoad() {
-    for _, v := range me.Species {me.species[v.ID] = &v }
+    for _, v := range me.Kins {me.kins[v.ID] = &v }
 }
 
 func LoadWorld(dirname string, name string) (result *World, err error) {
