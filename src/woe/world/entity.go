@@ -5,14 +5,14 @@ import "encoding/xml"
 
 
 
-// Anything insdie the WOE World can be identified by a unique short string 
+// Anything inside the WOE World can be identified by a unique short string 
 // description, the Label
 type Labeled interface {
     Label() string // Returns a unique label of the thing.
 }
 
 type Typed interface {
-    Type() string // Returns a tring description of the type of the thing. 
+    Type() string // Returns a string description of the type of the thing. 
 }
 
 

@@ -4,9 +4,9 @@ package world
 type Direction  string
 
 type Exit struct {
-    Direction 
+    Direction
     ToRoomID    int
-    toRoom    * Room         
+    toRoom    * Room
 }
 
 type Room struct {

@@ -8,7 +8,7 @@ import "compress/zlib"
 import "github.com/beoran/woe/monolog"
 
 
-// This Telnet struct implements a subset of the Telnet protocol.
+// This Telnet module implements a subset of the Telnet protocol.
 
 // Telnet states
 type TelnetState int
@@ -24,113 +24,6 @@ const (
     sb_data_state           = iota
     sb_data_iac_state       = iota
 )
-
-
-
-// Telnet event types
-
-type Event interface {
-    isEvent()
-}
-
-type DataEvent struct {
-    Data [] byte
-}
-
-func (me DataEvent) isEvent() {}
-
-type NAWSEvent struct {
-    W   int
-    H   int
-}
-
-func (me NAWSEvent) isEvent() {}
-
-
-type TTypeEvent struct {
-    Telopt  byte
-    Name    string
-}
-
-func (me TTypeEvent) isEvent() {}
-
-
-type SubnegotiateEvent struct {
-    Telopt    byte
-    Buffer [] byte
-}
-
-func (me SubnegotiateEvent) isEvent() {}
-
-
-type IACEvent struct {
-    Telopt    byte
-}
-
-func (me IACEvent) isEvent() {}
-
-
-type CompressEvent struct {
-    Compress  bool
-}
-
-func (me CompressEvent) isEvent() {}
-
-
-//Storage for environment values
-type Environment struct {
-    Type byte
-    Value string
-}
-
-
-type EnvironmentEvent struct {
-    Telopt    byte
-    Vars      [] Environment
-}
-
-func (me EnvironmentEvent) isEvent() {}
-
-
-type MSSPEvent struct {
-    Telopt    byte
-    Vars      map[string] string
-}
-
-func (me MSSPEvent) isEvent() {}
-
-
-type ZMPEvent struct {
-    Vars      []string
-}
-
-func (me ZMPEvent) isEvent() {}
-
-type WillEvent struct {
-    Telopt byte
-}
-
-func (me WillEvent) isEvent() {}
-
-type WontEvent struct {
-    Telopt byte
-}
-
-func (me WontEvent) isEvent() {}
-
-
-type DoEvent struct {
-    Telopt byte
-}
-
-func (me DoEvent) isEvent() {}
-
-type DontEvent struct {
-    Telopt byte
-}
-
-func (me DontEvent) isEvent() {}
-
 
 // Telnet event type constants
 type EventType int
@@ -149,50 +42,132 @@ const (
     TELNET_WONT_EVENT           EventType =  iota
     TELNET_DO_EVENT             EventType =  iota
     TELNET_DONT_EVENT           EventType =  iota
+    TELNET_ERROR_EVENT          EventType =  iota
     TELNET_UNKNOWN_EVENT        EventType =  iota
 )
 
+// Telnet event types
 
-/* Returns the numerical event type of an event. Useful for direct comparison. */
+type Event interface {
+    Type() EventType
+}
+
+type DataEvent struct {
+    Data [] byte
+}
+
+func (me DataEvent) Type() EventType { return TELNET_DATA_EVENT; }
+
+type NAWSEvent struct {
+    W   int
+    H   int
+}
+
+func (me NAWSEvent) Type() EventType { return TELNET_NAWS_EVENT; }
+
+
+type TTypeEvent struct {
+    Telopt  byte
+    Name    string
+}
+
+func (me TTypeEvent) Type() EventType { return TELNET_TTYPE_EVENT; }
+
+
+type SubnegotiateEvent struct {
+    Telopt    byte
+    Buffer [] byte
+}
+
+func (me SubnegotiateEvent) Type() EventType { return TELNET_SUBNEGOTIATE_EVENT; }
+
+
+type IACEvent struct {
+    Telopt    byte
+}
+
+func (me IACEvent) Type() EventType { return TELNET_IAC_EVENT; }
+
+
+type CompressEvent struct {
+    Compress  bool
+}
+
+func (me CompressEvent) Type() EventType { return TELNET_COMPRESS_EVENT; }
+
+
+// Storage for environment values
+type Environment struct {
+    Type byte
+    Value string
+}
+
+
+type EnvironmentEvent struct {
+    Telopt    byte
+    Vars      [] Environment
+}
+
+func (me EnvironmentEvent) Type() EventType { return TELNET_ENVIRONMENT_EVENT; }
+
+
+type MSSPEvent struct {
+    Telopt    byte
+    Vars      map[string] string
+}
+
+func (me MSSPEvent) Type() EventType { return TELNET_MSSP_EVENT; }
+
+
+type ZMPEvent struct {
+    Vars      []string
+}
+
+func (me ZMPEvent) Type() EventType { return TELNET_ZMP_EVENT; }
+
+type WillEvent struct {
+    Telopt byte
+}
+
+func (me WillEvent) Type() EventType { return TELNET_WILL_EVENT; }
+
+type WontEvent struct {
+    Telopt byte
+}
+
+func (me WontEvent) Type() EventType { return TELNET_WONT_EVENT; }
+
+
+type DoEvent struct {
+    Telopt byte
+}
+
+func (me DoEvent) Type() EventType { return TELNET_DO_EVENT; }
+
+type DontEvent struct {
+    Telopt byte
+}
+
+func (me DontEvent) Type() EventType { return TELNET_DONT_EVENT; }
+
+
+// For protocol errors.
+type ErrorEvent struct {
+    error string
+}
+
+func (me ErrorEvent) Type() EventType { return TELNET_ERROR_EVENT; }
+
+
+// Returns the numerical event type of an event. Useful for direct comparison.
 func EventTypeOf(event Event) EventType {
-    switch event.(type) {
-        case DataEvent, *DataEvent:
-            return TELNET_DATA_EVENT
-        case NAWSEvent, *NAWSEvent:
-            return TELNET_NAWS_EVENT
-        case TTypeEvent, *TTypeEvent:
-            return TELNET_TTYPE_EVENT
-        case SubnegotiateEvent, *SubnegotiateEvent:
-            return TELNET_SUBNEGOTIATE_EVENT
-        case IACEvent, *IACEvent:
-            return TELNET_IAC_EVENT
-        case CompressEvent, *CompressEvent:
-            return TELNET_COMPRESS_EVENT
-        case EnvironmentEvent, *EnvironmentEvent:
-            return TELNET_ENVIRONMENT_EVENT
-        case MSSPEvent, *MSSPEvent:
-            return TELNET_MSSP_EVENT
-        case ZMPEvent, *ZMPEvent:
-            return TELNET_ZMP_EVENT
-        case WillEvent, *WillEvent:
-            return TELNET_WILL_EVENT
-        case WontEvent, *WontEvent:
-            return TELNET_WONT_EVENT
-        case DoEvent, *DoEvent:
-            return TELNET_DO_EVENT
-        case DontEvent, *DontEvent:
-            return TELNET_DONT_EVENT
-        default:
-            monolog.Error("Unknown event type %T %v", event, event)
-            return TELNET_UNKNOWN_EVENT
-    }
+    return event.Type()
 }
 
 // Returns true if the event is of the given type, or false if not
 func IsEventType(event Event, typ EventType) bool {
     return EventTypeOf(event) == typ;
 }
-
 
 type EventChannel chan(Event)
 
@@ -206,8 +181,8 @@ type Telopt struct {
 type Telnet struct { 
   Events            EventChannel
   ToClient          chan([]byte)
-  telopts map[byte] Telopt 
-  state             TelnetState 
+  telopts map[byte] Telopt
+  state             TelnetState
   compress          bool
   zwriter           zlib.Writer
   zreader           io.ReadCloser
@@ -216,7 +191,6 @@ type Telnet struct {
 }
 
 func New() (telnet * Telnet) {
-    
     events     := make(EventChannel, 64)
     toclient   := make(chan([]byte), 64)
     telopts    := make (map[byte] Telopt)
@@ -501,7 +475,6 @@ func (me * Telnet) maybeSendDataEventAndEmptyBuffer() {
 }
 
 // Append a byte to the data buffer
-// Also empties the buffer if it wasn't emmpty
 func (me * Telnet) appendByte(bin byte) {
     monolog.Debug("Appending to telnet buffer: %d %d", len(me.buffer), cap(me.buffer))
     me.buffer = append(me.buffer, bin)

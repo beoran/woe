@@ -13,6 +13,7 @@ func main() {
     monolog.Info("Server runs at port %d!", 7000)
     woe, err := server.NewServer(":7000")
     if err != nil {
+        monolog.Error(err.Error())
         panic(err)
     }
     defer woe.Close()

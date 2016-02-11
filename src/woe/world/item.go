@@ -166,19 +166,23 @@ type Item struct {
     Price         int
     Kind          ItemKind
     Damage        DamageKind
-    // equipment location,  "none" if not equippable
+    // Equipment location,  "none" if not equippable
     Equippable    EquipWhere
-    // Level of crafing skill needed to craft this, or of harvesting skill to harvest this, 
-    // or of mining skill to mine this. Negative if cannot be crafted nor harvested, nor mined.    
+    // Level of crafing skill needed to craft this, or of harvesting skill 
+    // to harvest this, or of mining skill to mine this. Negative if cannot 
+    // be crafted nor harvested, nor mined.    
     Level         int
     // Id's of ingredients to craft this item. Empty if it cannot be crafted.
     Ingredients []ID
-    // Id of item this item can be upgraded/enhanced to. empty or "none" if cannot be upgraded.
+    // Id of item this item can be upgraded/enhanced to. empty or "none"
+    // if it cannot be upgraded.
     Upgrade       ID
-    // ID of item this item can degrade into. empty or "none" if cannot be degraded.
+    // ID of item this item can degrade into. empty or "none" if cannot be 
+    // degraded.
     Degrade       ID
-    // ID of technique/art/item to craft this item teaches when used, empty or none if it teaches nothing.
-    // If it'ss a skill, the XP of teaching is determine by the Quality of the item.   
+    // ID of technique/art/item to craft this item teaches when used, empty or 
+    // none if it teaches nothing. If it's a skill, the XP of teaching is 
+    // determined by the Quality of the item.   
     Teaches       ID
 }
 

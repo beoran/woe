@@ -75,7 +75,7 @@ type Server struct {
     clients map[int]    * Client 
     tickers map[string] * Ticker
     alive                 bool
-    World               * world.World             
+    World               * world.World
 }
 
 
@@ -120,10 +120,11 @@ func (me * Server) SetupWorld() error {
 func NewServer(address string) (server * Server, err error) {
     listener, err := net.Listen("tcp", address);
     if (err != nil) { 
+        io.Printf("")
         return nil, err
     }
     
-    logfile, err := os.OpenFile("log.woe", os.O_WRONLY | os.O_APPEND | os.O_CREATE, 0660) 
+    logfile, err := os.OpenFile("log.woe", os.O_WRONLY | os.O_APPEND | os.O_CREATE, 0660)
     if (err != nil) {
         return nil, err
     }
@@ -132,10 +133,9 @@ func NewServer(address string) (server * Server, err error) {
     clients := make(map[int] * Client)
     tickers := make(map[string] * Ticker)
 
-    server = &Server{address, listener, logger, logfile, clients, tickers, true, nil}    
+    server = &Server{address, listener, logger, logfile, clients, tickers, true, nil}
     err = server.SetupWorld()
     server.AddDefaultTickers()
-    
     
     return server, err
 }
@@ -233,7 +233,7 @@ func (me * Server) findFreeID() (id int, err error) {
 func (me * Server) onConnect(conn net.Conn) (err error) {
     id, err := me.findFreeID()
     if err != nil {
-        monolog.Info("Refusing connection because no ID is available for %s. ", conn.RemoteAddr().String())
+        monolog.Info("Refusing connection for %s: too many clients. ", conn.RemoteAddr().String())
         conn.Close()
         return nil
     }

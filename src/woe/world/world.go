@@ -4,11 +4,11 @@ import "os"
 import "encoding/xml"
 import "github.com/beoran/woe/monolog"
 
-/* Ekements of the WOE game world.  
+/* Elements of the WOE game world.  
  * Only Zones, Rooms and their Exits, Items, 
  * Mobiles & Characters are saved
  * and loaded from disk. All the rest 
- * is kept statically delared in code for simplocoty.
+ * is kept statically delared in code for simplicity.
 */
 
 /* ID used for anything in a world but the world itself and the account. */
@@ -16,64 +16,21 @@ type ID string
 
 
 type World struct {
-    Name                 string
-    ZoneIDS         []   ID
-    zones           [] * Zone
-    CharacterIDS    []   ID
-    characters      [] * Character
-    MOTD                 string
-    
-    /* Skills, etc that exist in this world */
-    genders         map[ID] *Gender    
-    kins            map[ID] *Kin
-    professions     map[ID] *Job
-    skills          map[ID] *Skill
-    arts            map[ID] *Art
-    techniques      map[ID] *Technique
-    exploits        map[ID] *Exploit
-    
-    /* Botha array and map are needed for serialization. */
-    Genders         [] Gender
-    Kins            [] Kin
-    Jobs     [] Job
-    Skills          [] Skill
-    Arts            [] Art
-    Techniques      [] Technique
-    Exploits        [] Exploit
-        
+    Name                      string
+    MOTD                      string
+    entitymap       map[ID] * Entity
+    zonemap         map[ID] * Zone
+    zones                [] * Zone
+    charactermap    map[ID] * Character
+    characters           []   Character
+    roommap         map[ID] * Room
+    rooms                []   Room
+    itemmap         map[ID] * Item
+    items                []   Item
+    mobilemap       map[ID] * Mobile
+    mobiles              []   Mobile
 }
 
-
-
-func (me * World) AddKin(toadd * Kin) {
-    me.kins[toadd.ID] = toadd
-    me.Kins = append(me.Kins, *toadd)
-}
-
-func (me * World) AddJob(toadd * Job) {
-    me.professions[toadd.ID] = toadd
-    me.Jobs = append(me.Jobs, *toadd)
-}
-
-func (me * World) AddSkill(toadd * Skill) {
-    me.skills[toadd.ID] = toadd
-    me.Skills = append(me.Skills, *toadd)
-}
-
-func (me * World) AddArt(toadd * Art) {
-    me.arts[toadd.ID] = toadd
-    me.Arts = append(me.Arts, *toadd)
-}
-
-func (me * World) AddTechnique(toadd * Technique) {
-    me.techniques[toadd.ID] = toadd
-    me.Techniques = append(me.Techniques, *toadd)
-}
-
-func (me * World) AddExploit(toadd * Exploit) {
-    me.exploits[toadd.ID] = toadd
-    me.Exploits = append(me.Exploits, *toadd)
-}
 
 
 func (me * World) AddWoeDefaults() {
@@ -90,7 +47,6 @@ func NewWorld(name string, motd string) (*World) {
     world := new(World)
     world.Name = name
     world.MOTD = motd
-    world.kins = make(map[ID] *Kin)
     
     world.AddWoeDefaults()
     return world;
@@ -104,11 +60,14 @@ func HaveID(ids [] ID, id ID) bool {
     return false
 }
 
+func (me * World) AddEntity(entity * Entity) {
+    me.entitymap[entity.ID] = entity;
+}
+
 func (me * World) AddZone(zone * Zone) {
     me.zones = append(me.zones, zone)
-    if (!HaveID(me.ZoneIDS, zone.ID)) {
-        me.ZoneIDS = append(me.ZoneIDS, zone.ID)
-    }    
+    me.zonemap[zone.ID] = zone;
+    me.AddEntity(&zone.Entity);
 }
 
 func (me * World) Save(dirname string) (err error) {
@@ -129,7 +88,6 @@ func (me * World) Save(dirname string) (err error) {
 }
 
 func (me * World) onLoad() {
-    for _, v := range me.Kins {me.kins[v.ID] = &v }
 }
 
 func LoadWorld(dirname string, name string) (result *World, err error) {

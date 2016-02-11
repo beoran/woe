@@ -93,7 +93,7 @@ func (me * Client) TryReadEvent(millis int) (event telnet.Event, timeout bool, c
     if millis >= 0 {
         timerchan = time.Tick(time.Millisecond * time.Duration(millis))
     } else {
-        /* If tiome is negative, block by using a fake time channel that never gets sent anyting */
+        /* If time is negative, block by using a fake time channel that never gets sent anyting */
         timerchan = make(<-chan(time.Time))
     }
     
@@ -142,7 +142,8 @@ func (me * Client) Serve() (err error) {
     }
     if (!me.AccountDialog()) {
         time.Sleep(3); 
-        // sleep so output gets flushed, hopefully. Also slow down brute force attacks.
+        // sleep so output gets flushed, hopefully.
+        // Also slow down brute force attacks.
         me.Close()
         return nil
     }
