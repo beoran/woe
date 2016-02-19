@@ -9,7 +9,7 @@ import "github.com/beoran/woe/world"
 import "github.com/beoran/woe/monolog"
 import "bytes"
 import "regexp"
-import "fmt"
+// import "fmt"
 // import "strconv"
 
 
@@ -101,6 +101,7 @@ func (me * Client) AskSomething(prompt string, re string, nomatch_prompt string,
     
     if noecho {
       me.NormalMode()
+      me.Printf("\n")
     }
     
     return something
@@ -132,9 +133,14 @@ func (me * Client) HandleCommand() {
     if bytes.HasPrefix(command, []byte("/quit")) {
       me.Printf("Byebye!\n")
       me.alive = false
+    } else if bytes.HasPrefix(command, []byte("/shutdown")) {
+      me.server.Broadcast("Shutting down server NOW!\n")
+      me.server.Shutdown();
+    } else if bytes.HasPrefix(command, []byte("/restart")) {
+      me.server.Broadcast("Restarting down server NOW!\n")
+      me.server.Restart();
     } else {
-      bro := fmt.Sprintf("Client %d said %s\r\n", me.id, command)  
-      me.server.Broadcast(bro)
+      me.server.Broadcast("Client %d said %s\r\n", me.id, command)  
     }
 }
  
@@ -196,7 +202,14 @@ func (me * Client) AccountDialog() bool {
     login  := me.AskLogin()
     if login == nil { return false }
     var err error
-    me.account, err = world.LoadAccount(me.server.DataPath(), string(login))    
+    
+    if me.server.World.GetAccount(string(login)) != nil {
+        me.Printf("Account already logged in!\n")
+        me.Printf("Disconnecting!\n")
+        return false 
+    }
+    
+    me.account, err = me.server.World.LoadAccount(me.server.DataPath(), string(login))    
     if err != nil {
         monolog.Warning("Could not load account %s: %v", login, err)  
     }
@@ -207,4 +220,18 @@ func (me * Client) AccountDialog() bool {
     }
 }
  
+func (me * Client) CharacterDialog() bool {
+    login  := me.AskLogin()
+    if login == nil { return false }
+    var err error
+    me.account, err = world.LoadAccount(me.server.DataPath(), string(login))    
+    if err != nil {
+        monolog.Warning("Could not load account %s: %v", login, err)  
+    }
+    if me.account != nil {
+      return me.ExistingAccountDialog()
+    } else {
+      return me.NewAccountDialog(string(login))
+    }
+}
 

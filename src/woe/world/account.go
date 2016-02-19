@@ -7,8 +7,16 @@ import "github.com/beoran/woe/sitef"
 import "github.com/beoran/woe/monolog"
 import "fmt"
 import "errors"
-import "strconv"
 
+type Privilege int
+
+const (
+    PRIVILEGE_ZERO        = Privilege(iota * 100)
+    PRIVILEGE_NORMAL
+    PRIVILEGE_MASTER
+    PRIVILEGE_LORD
+    PRIVILEGE_IMPLEMENTOR
+)
 
 
 type Named struct {
@@ -22,6 +30,7 @@ type Account struct {
     Algo              string
     Email             string
     Points            int
+    Privilege         Privilege
     CharacterNames  []string
     characters      [] * Character
 }
@@ -37,7 +46,7 @@ func SavePathFor(dirname string, typename string, name string) string {
 
 
 func NewAccount(name string, pass string, email string, points int) (*Account) {
-    return &Account{name, pass, "plain", email, points, nil, nil}
+    return &Account{name, pass, "plain", email, points, PRIVILEGE_NORMAL, nil, nil}
 }
 
 // Password Challenge for an account.
@@ -69,15 +78,16 @@ func (me * Account) Save(dirname string) (err error) {
     path := SavePathFor(dirname, "account", me.Name)
     
     rec                := make(sitef.Record)
-    rec["name"]         = me.Name
-    rec["hash"]         = me.Hash
-    rec["algo"]         = me.Algo
-    rec["email"]        = me.Email
-    rec["points"]       = fmt.Sprintf("%d", me.Points)
-    rec["characters"]   = fmt.Sprintf("%d", len(me.characters))
+    rec.Put("name",         me.Name)
+    rec.Put("hash",         me.Hash)
+    rec.Put("algo",         me.Algo)
+    rec.Put("email",        me.Email)
+    rec.PutInt("points",    me.Points)
+    rec.PutInt("privilege", int(me.Privilege))
+    rec.PutInt("characters",len(me.characters))
     for i, chara   := range me.characters {
         key        := fmt.Sprintf("characters[%d]", i)
-        rec[key]    = chara.Name
+        rec.Put(key, chara.Name)
     }
     monolog.Debug("Saving Acccount record: %s %v", path, rec)
     return sitef.SaveRecord(path, rec)
@@ -101,20 +111,20 @@ func LoadAccount(dirname string, name string) (account *Account, err error) {
     monolog.Info("Loading Account record: %s %v", path, record)
     
     account = new(Account)
-    account.Name            = record["name"]
-    account.Hash            = record["hash"]
-    account.Algo            = record["algo"]
-    account.Email           = record["email"]
-    account.Points,  err    = strconv.Atoi(record["points"])    
+    account.Name            = record.Get("name")
+    account.Hash            = record.Get("hash")
+    account.Algo            = record.Get("algo")
+    account.Email           = record.Get("email")
+    account.Points,  err    = record.GetInt("points")
     if err != nil {
         account.Points = 0
     }
     var nchars int
-    nchars,  err            = strconv.Atoi(record["characters"])
+    nchars,  err            = record.GetInt("characters")
     if err != nil {
         nchars = 0
     } 
-    _ = nchars   
+    _ = nchars
     /* Todo: load characters here... */    
     monolog.Info("Loaded Account: %s %v", path, record)
     return account, nil

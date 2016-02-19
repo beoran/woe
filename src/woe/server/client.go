@@ -56,6 +56,10 @@ func NewClient(server * Server, id int, conn net.Conn) * Client {
 func (me * Client) Close() {
     me.conn.Close()
     me.alive = false
+    if me.account != nil {     
+        me.server.World.RemoveAccount(me.account.Name)
+    }
+    me.account = nil
 }
 
 /** Goroutine that does the actual reading of input data, and sends it to the 
@@ -68,7 +72,7 @@ func (me * Client) ServeRead() {
             me.errchan <- err
             return
         }
-        // reply will be stored in me.telnet.Events
+        // reply will be stored in me.telnet.Events channel
         me.telnet.ProcessBytes(buffer[:read])
     }
 }

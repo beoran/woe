@@ -217,7 +217,7 @@ func (me * Client) SetupTelnet() {
     me.SetupMXP()
     me.SetupMSP()
     me.SetupMSDP()
-    // color_test
+    // me.ColorTest()
 }
 
 
@@ -248,95 +248,8 @@ func (me * Client) SetupTelnet() {
     return nil
   end
   
-  def color_test
-    self.write("\e[1mBold\e[0m\r\n")
-    self.write("\e[3mItalic\e[0m\r\n")
-    self.write("\e[4mUnderline\e[0m\r\n")
-    30.upto(37) do | fg |
-      self.write("\e[#{fg}mForeground Color #{fg}\e[0m\r\n")
-      self.write("\e[1;#{fg}mBold Foreground Color #{fg}\e[0m\r\n")
-    end  
-    40.upto(47) do | bg |
-      self.write("\e[#{bg}mBackground Color #{bg}\e[0m\r\n")
-      self.write("\e[1;#{bg}mBold Background Color #{bg}\e[0m\r\n")
-    end    
-  end
-  
-  def setup_telnet
-    loop do
-      tev = wait_for_input(0.5)
-      if tev
-        p "setup_telnet", tev
-      else
-        p "no telnet setup received..."
-        break
-      end
-    end
-    setup_mssp
-    setup_compress2
-    setup_naws
-    setup_ttype
-    setup_mxp
-    setup_msp
-    setup_msdp
-    # color_test
-    
-    
-    #p "mssp ev #{tev}"
-    # @telnet.telnet_send_negotiate(TELNET_WILL, TELNET_TELOPT_MSSP)        
-    # tev = wait_for_input(0.5)
-    # p "mssp ev #{tev}"
-    
-    # @telnet.telnet_ttype_send
-    
-    
-  end
- 
-  LOGIN_RE = /\A[A-Za-z][A-Za-z0-9]*\Z/
-  
-  def ask_something(prompt, re, nomatch_prompt, noecho=false)
-    something = nil
-    
-    if noecho
-      password_mode
-    end
-
-    while  something.nil? || something.empty? 
-      write("#{prompt}:")
-      something = wait_for_command
-      if something
-          something.chomp!
-        if re && something !~ re
-          write("\r\n#{nomatch_prompt}\r\n")
-          something = nil
-        end
-      end
-    end
-    
-    if noecho
-      normal_mode
-    end
-    
-    something.chomp!
-    return something
-  end
-  
-  
-  
-  def ask_login
-    return ask_something("Login", LOGIN_RE, "Login must consist of a letter followed by letters or numbers.")
   end
 
-  EMAIL_RE = /@/
-
-  def ask_email
-    return ask_something("E-mail", EMAIL_RE, "Email must have at least an @ in there somewhere.")
-  end
-
-
-  def ask_password(prompt = "Password")
-    return ask_something(prompt, nil, "", true) 
-  end
   
   def handle_command
     order = wait_for_command
@@ -348,51 +261,5 @@ func (me * Client) SetupTelnet() {
       @server.broadcast("#{@account.id} said #{order}\r\n")
     end
   end
-  
-  def existing_account_dialog
-    pass  = ask_password
-    return false unless pass
-    unless @account.challenge?(pass)
-      printf("Password not correct!\n")
-      return false
-    end
-    return true
-  end
-  
-  def new_account_dialog(login)
-    while !@account 
-      printf("\nWelcome, %s! Creating new account...\n", login)
-      pass1  = ask_password
-      return false unless pass1
-      pass2 = ask_password("Repeat Password")
-      return false unless pass2
-      if pass1 != pass2
-        printf("\nPasswords do not match! Please try again!\n")
-        next
-      end
-      email = ask_email
-      return false unless email
-      @account = Woe::Account.new(:id => login, :email => email )
-      @account.password   = pass1
-      @account.woe_points = 7
-      unless @account.save_one
-        printf("\nFailed to save your account! Please contact a WOE administrator!\n")
-        return false
-      end
-      printf("\nSaved your account.\n")
-      return true
-    end
-  end
-  
-  def account_dialog
-    login  = ask_login
-    return false unless login
-    @account = Account.fetch(login)
-    if @account
-      return existing_account_dialog
-    else
-      return new_account_dialog(login)
-    end
-  end
- 
+   
 */

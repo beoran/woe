@@ -3,6 +3,7 @@ package world
 import (
     "fmt"
     "strings"
+    //"github.com/beoran/woe/sitef"
 )
 
 /* Aptitudes of a being, species or profession */

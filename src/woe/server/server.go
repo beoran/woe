@@ -16,7 +16,11 @@ import (
 
 var MSSP map[string] string
 
-const MAX_CLIENTS = 1000
+const STATUS_OK             = 0
+const STATUS_CANNOT_LISTEN  = 1
+const STATUS_RESTART        = 0
+const STATUS_SHUTDOWN       = 4
+const MAX_CLIENTS           = 1000
 
 func init() {
      MSSP = map[string] string {
@@ -76,6 +80,7 @@ type Server struct {
     tickers map[string] * Ticker
     alive                 bool
     World               * world.World
+    exitstatus            int
 }
 
 
@@ -88,7 +93,7 @@ type Ticker struct {
 }
 
 
-const DEFAULT_MOTD =
+const DEFAULT_MOTD_OK =
 
 `
 ###############################
@@ -97,10 +102,21 @@ const DEFAULT_MOTD =
 
 `
 
+const DEFAULT_MOTD =
+`
+Welcome!
+`
 
-func (me * Server) SetupWorld() error {
-    /*
-    me.World, _ = world.LoadWorld(me.DataPath(), "WOE")
+
+
+func (me * Server) SetupWorld() (err error) {
+    me.World, err = world.LoadWorld(me.DataPath(), "WOE")
+    
+    if err != nil { 
+        monolog.Error("Could not load world WOE: %s", err)
+        return err
+    }
+    
     if me.World == nil {
         monolog.Info("Creating new default world...")
         me.World = world.NewWorld("WOE", DEFAULT_MOTD)
@@ -112,7 +128,6 @@ func (me * Server) SetupWorld() error {
             monolog.Info("Saved default world.")
         }
     }
-    */
     return nil
 }
 
@@ -120,7 +135,6 @@ func (me * Server) SetupWorld() error {
 func NewServer(address string) (server * Server, err error) {
     listener, err := net.Listen("tcp", address);
     if (err != nil) { 
-        io.Printf("")
         return nil, err
     }
     
@@ -133,16 +147,13 @@ func NewServer(address string) (server * Server, err error) {
     clients := make(map[int] * Client)
     tickers := make(map[string] * Ticker)
 
-    server = &Server{address, listener, logger, logfile, clients, tickers, true, nil}
+    server = &Server{address, listener, logger, logfile, clients, tickers, true, nil, STATUS_RESTART}
     err = server.SetupWorld()
     server.AddDefaultTickers()
     
     return server, err
 }
 
-func (me * Server) Close() {
-    me.logfile.Close();
-}
 
 
 func NewTicker(server * Server, name string, milliseconds int, callback func (me * Ticker, t time.Time) bool) (* Ticker) {
@@ -180,8 +191,6 @@ func (me * Server) StopTicker(name string) {
     ticker.Stop();
 }
 
-
-
 func (me * Server) AddTicker(name string, milliseconds int, callback func (me * Ticker, t time.Time) bool) (* Ticker) {
     _, have := me.tickers[name]
     
@@ -198,17 +207,17 @@ func (me * Server) AddTicker(name string, milliseconds int, callback func (me * 
 
 
 func onWeatherTicker (me * Ticker, t time.Time) bool {
-    monolog.Info("Weather Ticker tick tock.")
+    me.Server.Broadcast("The weather is changing...\n")
     return true
 }
 
 
 func (me * Server) AddDefaultTickers() {
-    me.AddTicker("weather", 10000, onWeatherTicker)    
+    me.AddTicker("weather", 30000, onWeatherTicker)    
 }
 
 func (me * Server) handleDisconnectedClients() {
-    for { 
+    for me.alive { 
         time.Sleep(1)
         for id, client := range me.clients {
             if (!client.IsAlive()) {
@@ -243,29 +252,75 @@ func (me * Server) onConnect(conn net.Conn) (err error) {
     return client.Serve()
 }
 
-func (me * Server) Serve() (err error) { 
+func (me * Server) Shutdown() {
+    monolog.Info("Server is going to shut down.")
+    me.alive        = false
+    me.exitstatus   = STATUS_SHUTDOWN
+}
+
+func (me * Server) Restart() {
+    monolog.Info("Server is going to restart.")
+    me.alive        = false
+    me.exitstatus   = STATUS_RESTART
+}
+
+
+func (me * Server) Close() {
+    monolog.Info("Closing server, shutting down tickers.")
+    
+    for name, _ := range me.tickers {
+        me.RemoveTicker(name);
+    }
+
+    monolog.Info("Closing server, shutting down clients.")
+    for _, client := range me.clients {
+        if (client.IsAlive()) {
+            client.Close()
+        }
+    }
+    
+    me.handleDisconnectedClients()
+    monolog.Info("Closing server, closing logfile.")
+    me.logfile.Close();
+}
+
+func (me * Server) Serve() (status int, err error) { 
     // Setup random seed here, or whatever
     rand.Seed(time.Now().UTC().UnixNano())
     
     go me.handleDisconnectedClients()
     
     for (me.alive) {
+        if tcplistener, ok := me.listener.(*net.TCPListener) ; ok {
+          tcplistener.SetDeadline(time.Now().Add(5*time.Second))
+        }
         conn, err := me.listener.Accept()
         if err != nil {
-            return err
+            if noe, ok := err.(*net.OpError) ; ok && noe.Timeout() {
+                // it's a timeout. Do nothing, just listen again.
+                // this to allow the alive flag to do it's work.
+            } else {
+                return STATUS_CANNOT_LISTEN, err
+            }
+        } else {
+            go me.onConnect(conn)
         }
-        go me.onConnect(conn)
     }
-    return nil
+    return me.exitstatus, nil
 }
 
 
-func (me * Server) Broadcast(message string) {
+func (me * Server) BroadcastString(message string) {
     for _, client := range me.clients {
         if (client.IsAlive()) {
             client.WriteString(message)
         }
     }       
+}
+
+func (me * Server) Broadcast(format string, args ...interface{}) {
+    msg := fmt.Sprintf(format, args...)
+    me.BroadcastString(msg)
 }
 
 

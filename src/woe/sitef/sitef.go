@@ -6,6 +6,7 @@ import "strings"
 import "fmt"
 import "bytes"
 import "bufio"
+import "strconv"
 
 // Sitef format for serialization
 // Sitef is a simple text format for serializing data to
@@ -35,6 +36,63 @@ import "bufio"
 // 
 
 type Record map[string]string
+
+func (me * Record) Put(key string, val string) {
+    (*me)[key] = val
+}
+
+func (me * Record) Putf(key string, format string, values ...interface{}) {
+    me.Put(key, fmt.Sprintf(format, values...)) 
+}
+
+func (me * Record) PutArray(key string, values []string) {
+    for i, value := range values {
+        realkey := fmt.Sprintf("%s[%d]", key, i)
+        me.Put(realkey, value)
+    }
+} 
+
+func (me * Record) PutInt(key string, val int) {
+    me.Putf(key, "%d", val)
+}
+
+func (me * Record) PutFloat64(key string, val float64) {
+    me.Putf(key, "%lf", val)
+}
+
+
+func (me Record) Get(key string) (result string) {
+    return me[key]
+}
+
+func (me Record) Getf(key string, format string, 
+    values ...interface{}) (amount int, ok bool) {
+    val := me.Get(key)
+    count, err := fmt.Sscanf(val, format, values...)
+    if err != nil {
+        return 0, false
+    }
+    return count, true
+}
+
+func (me Record) GetInt(key string) (val int, err error) {
+    i, err := strconv.ParseInt(me.Get(key), 0, 0)
+    return int(i), err
+}
+
+func (me Record) GetIntDefault(key string, def int) (val int) {
+    i, err := strconv.ParseInt(me.Get(key), 0, 0)
+    if err != nil {
+        return def;
+    }
+    return int(i);
+}
+
+
+func (me Record) GetFloat(key string) (val float64, error error) {
+    return strconv.ParseFloat(me.Get(key), 64)
+}
+
 
 type Error struct {
     error   string
