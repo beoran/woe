@@ -1,5 +1,7 @@
 package server
 
+import "bytes"
+import "errors"
 // import "github.com/beoran/woe/telnet"
 import "github.com/beoran/woe/world"
 import "github.com/beoran/woe/monolog"
@@ -11,9 +13,11 @@ type ActionData struct {
     Client * Client
     Server * Server
     World  * world.World
+    Account* world.Account
     Action * Action
-    Command  string
-    Argv   []string
+    Command  []byte
+    Rest     []byte
+    Argv     [][]byte
 }
 
 /* A handler for an action. */
@@ -36,21 +40,48 @@ func AddAction(name string, privilege world.Privilege, handler ActionHandler) {
     ActionMap[name] = action
 }
 
-func doShutdown(data * ActionData) (err error) {
+func doShout(data * ActionData) (err error) {
+      data.Server.Broadcast("Client said %s\r\n", data.Rest)
+      return nil  
+}
+
+func doShutdown(data * ActionData) (err error) {    
+    data.Server.Broadcast("Shutting down server NOW!\n")
+    data.Server.Restart();
     return nil
 }
 
 func doRestart(data * ActionData) (err error) {
+    data.Server.Broadcast("Restarting server NOW!\n")
+    data.Server.Restart();
     return nil
 }
 
-
-func doQuit(data * ActionData) (err error) {    
+func doQuit(data * ActionData) (err error) {  
+    data.Client.Printf("Byebye!\n")
+    data.Client.Disconnect()
     return nil
 }
 
-func ParseCommand(command string, data * ActionData) {
-    data.Command = command
+func ParseCommand(command []byte, data * ActionData) (err error) {
+    /* strip any leading blanks  */
+    trimmed    := bytes.TrimLeft(command, " \t")
+    parts      := bytes.SplitN(trimmed, []byte(" \t,"), 2)  
+    
+    if len(parts) < 1 {
+        data.Command = nil
+        return errors.New("Come again?")
+    }
+    data.Command = parts[0]
+    if len(parts) > 1 { 
+        data.Rest    = parts[1]
+        data.Argv    = bytes.Split(data.Rest, []byte(" \t,"))
+    } else {
+        data.Rest    = nil
+        data.Argv    = nil
+    }
+        
+    return nil
 } 
 
 func init() {
@@ -59,4 +90,32 @@ func init() {
     AddAction("/restart"    , world.PRIVILEGE_LORD, doRestart)
     AddAction("/quit"       , world.PRIVILEGE_ZERO, doQuit)
 }
+
+func (client * Client) ProcessCommand(command []byte) {
+    ad := &ActionData{client, client.GetServer(), 
+        client.GetWorld(), client.GetAccount(), nil, nil, nil, nil }
+    _ = ad
+    err := ParseCommand(command, ad);
+    if err != nil {
+        client.Printf("%s", err)
+        return
+    }
+    
+    action, ok := ActionMap[string(ad.Command)]
+    ad.Action = &action
+    
+    if ad.Action == nil || (!ok) {
+        client.Printf("Unknown command %s.", ad.Command)
+        return
+    }
+    // Check if sufficient rights to perform the action
+    if (ad.Action.Privilege > client.GetAccount().Privilege) {
+        client.Printf("You lack the privilege to %s (%d vs %d).", 
+        ad.Command, ad.Action.Privilege, client.GetAccount().Privilege)
+        return
+    }
+    
+    // Finally run action
+    ad.Action.Handler(ad)
+} 
 

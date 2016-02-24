@@ -170,6 +170,10 @@ func (me * Client) Serve() (err error) {
     return nil
 }
 
+func (me * Client) Disconnect() {
+    me.alive = false
+}
+
 func (me * Client) IsAlive() bool {
     return me.alive
 }
@@ -177,3 +181,19 @@ func (me * Client) IsAlive() bool {
 func (me * Client) WriteString(str string) {
     me.conn.Write([]byte(str))
 }
+
+/** Accessor */
+func (me * Client) GetServer() (* Server) {
+    return me.server;
+}
+
+/** Accessor */
+func (me * Client) GetWorld() (* world.World) {
+    return me.server.World;
+}
+
+/** Accessor */
+func (me * Client) GetAccount() (* world.Account) {
+    return me.account;
+}
+

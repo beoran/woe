@@ -115,15 +115,12 @@ func LoadAccount(dirname string, name string) (account *Account, err error) {
     account.Hash            = record.Get("hash")
     account.Algo            = record.Get("algo")
     account.Email           = record.Get("email")
-    account.Points,  err    = record.GetInt("points")
-    if err != nil {
-        account.Points = 0
-    }
+    account.Points          = record.GetIntDefault("points", 0)
+    account.Privilege       = Privilege(record.GetIntDefault("privilege", 
+                                int(PRIVILEGE_NORMAL)))
+    
     var nchars int
-    nchars,  err            = record.GetInt("characters")
-    if err != nil {
-        nchars = 0
-    } 
+    nchars                  = record.GetIntDefault("characters", 0)
     _ = nchars
     /* Todo: load characters here... */    
     monolog.Info("Loaded Account: %s %v", path, record)

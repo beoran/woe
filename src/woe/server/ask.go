@@ -130,6 +130,8 @@ func (me * Client) AskRepeatPassword() []byte {
 
 func (me * Client) HandleCommand() {
     command := me.ReadCommand()
+    me.ProcessCommand(command)
+    /*
     if bytes.HasPrefix(command, []byte("/quit")) {
       me.Printf("Byebye!\n")
       me.alive = false
@@ -142,6 +144,7 @@ func (me * Client) HandleCommand() {
     } else {
       me.server.Broadcast("Client %d said %s\r\n", me.id, command)  
     }
+    */
 }
  
 func (me * Client) ExistingAccountDialog() bool {
