@@ -116,6 +116,13 @@ func (me * Client) TryReadEvent(millis int) (event telnet.Event, timeout bool, c
     }
 }
 
+func (me * Client) HandleNAWSEvent(nawsevent * telnet.NAWSEvent) {
+    me.info.w = nawsevent.W
+    me.info.h = nawsevent.H
+    monolog.Info("Client %d window size #{%d}x#{%d}", me.id, me.info.w, me.info.h) 
+    me.info.naws     = true    
+}
+
 func (me * Client) TryRead(millis int) (data []byte, timeout bool, close bool) {
     
     for (me.alive) { 
@@ -127,6 +134,8 @@ func (me * Client) TryRead(millis int) (data []byte, timeout bool, close bool) {
             case * telnet.DataEvent:
                 monolog.Debug("Telnet data event %T : %d.", event, len(event.Data))
                 return event.Data, false, false
+            case * telnet.NAWSEvent:
+                me.HandleNAWSEvent(event);
             default:
                 monolog.Info("Ignoring telnet event %T : %v for now.", event, event)
         }
@@ -151,6 +160,15 @@ func (me * Client) Serve() (err error) {
         me.Close()
         return nil
     }
+    
+    if (!me.CharacterDialog()) {
+        time.Sleep(3); 
+        // sleep so output gets flushed, hopefully.
+        // Also slow down brute force attacks.
+        me.Close()
+        return nil
+    }
+    
     
     me.Printf("Welcome, %s\n", me.account.Name)
     

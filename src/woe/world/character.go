@@ -10,26 +10,44 @@ import "github.com/beoran/woe/sitef"
 
 type Character struct {
     Being       
-    AccountName string
-    account   * Account
+    * Account
 }
 
 
-func NewCharacter(being Being, accountname string, account * Account) (*Character) {
-    return &Character{being, accountname, account}
+func NewCharacterFromBeing(being Being, account * Account) (*Character) {
+    return &Character{being, account}
 }
 
+func (me * Character) Init(account * Account, name string, 
+              kin Entitylike, gender Entitylike, job Entitylike) (* Character) {
+    me.Account = account
+    me.Being.Init("character", name, account.Privilege, kin, gender, job)
+    return me
+}
+
+func NewCharacter(account * Account, name string, 
+              kin Entitylike, gender Entitylike, job Entitylike) (* Character) {
+    me := &Character{};
+    return me.Init(account, name, kin, gender, job)
+}
 
 // Save a character as a sitef record.
 func (me * Character) SaveSitef(rec sitef.Record) (err error) {
-    rec["accountname"]  = me.AccountName
-    // TODO: saving: me.Being.SaveSitef(rec)
+    rec["accountname"]  = me.Account.Name
+    me.Being.SaveSitef(rec)
+    
     return nil
 }
 
 // Load a character from a sitef record.
 func (me * Character) LoadSitef(rec sitef.Record) (err error) {
-    me.AccountName = rec["accountname"] 
+    aname := rec["accountname"]
+    account, err := DefaultWorld.LoadAccount(aname)
+    if err != nil {
+        return err
+    } 
+    me.Account = account
+    me.Being.LoadSitef(rec)
     // TODO: load being. me.Being.SaveSitef(rec)
     return nil
 }
@@ -63,18 +81,18 @@ func LoadCharacter(dirname string, name string) (character *Character, err error
     monolog.Info("Loading Account record: %s %v", path, record)
     
     character               = new(Character)
-    character.AccountName   = record["AccountName"]
-    account, err           := DefaultWorld.LoadAccount(dirname, character.AccountName);
+    aname                  := record["AccountName"]
+    account, err           := DefaultWorld.LoadAccount(aname);
     if err != nil  {
         return nil, err
     } 
     
     if account == nil {
         return nil, fmt.Errorf("Cound not load account %s for character %s", 
-            character.AccountName, character.Name)
+            aname, character.Name)
     }
     
-    character.account = account
+    character.Account = account
     
     return character, nil
 }

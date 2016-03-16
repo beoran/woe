@@ -73,6 +73,12 @@ func SitefStoreArray(rec sitef.Record, key string, val LabeledList) {
 }
 
 
+// Add a character to an account.
+func (me * Account) AddCharacter(chara * Character) {
+    me.characters = append(me.characters, chara)
+}
+
+
 // Save an account as a sitef file.
 func (me * Account) Save(dirname string) (err error) {
     path := SavePathFor(dirname, "account", me.Name)
@@ -88,6 +94,7 @@ func (me * Account) Save(dirname string) (err error) {
     for i, chara   := range me.characters {
         key        := fmt.Sprintf("characters[%d]", i)
         rec.Put(key, chara.Name)
+        
     }
     monolog.Debug("Saving Acccount record: %s %v", path, rec)
     return sitef.SaveRecord(path, rec)
@@ -121,13 +128,16 @@ func LoadAccount(dirname string, name string) (account *Account, err error) {
     
     var nchars int
     nchars                  = record.GetIntDefault("characters", 0)
-    _ = nchars
+    account.characters      = make([] * Character, nchars)
     /* Todo: load characters here... */    
-    monolog.Info("Loaded Account: %s %v", path, record)
+    monolog.Info("Loaded Account: %s %v", path, account)
     return account, nil
 }
 
  
+func (me * Account) NumCharacters() int {
+    return len(me.characters)
+} 
 
 func (me * Account) SaveXML(dirname string) (err error) {
     path := SavePathForXML(dirname, "account", me.Name)

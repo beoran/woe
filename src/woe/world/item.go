@@ -1,5 +1,10 @@
 package world
 
+import "github.com/beoran/woe/sitef"
+import "github.com/beoran/woe/monolog"
+import "fmt"
+import "errors"
+
 type DamageKind string
 const (
     DAMAGE_CUT          DamageKind = "cut"
@@ -156,9 +161,17 @@ const (
     EQUIP_ARMS      EquipWhere = "arms"
     EQUIP_RIGHTRING EquipWhere = "rightring"
     EQUIP_LEFTRING  EquipWhere = "leftring"
+    EQUIP_BELT      EquipWhere = "belt"
     EQUIP_LIGHT     EquipWhere = "light"
     EQUIP_          EquipWhere = ""    
 )
+
+var EquipWhereList []EquipWhere = []EquipWhere {
+    EQUIP_HEAD,         EQUIP_TORSO,    EQUIP_OFFHAND,  EQUIP_DOMINANT,
+    EQUIP_AMMO,         EQUIP_FEET,     EQUIP_FOCUS,    EQUIP_PHONE,
+    EQUIP_GLOVES,       EQUIP_NECK,     EQUIP_LEGS,     EQUIP_ARMS,
+    EQUIP_RIGHTRING,    EQUIP_LEFTRING, EQUIP_BELT,     EQUIP_LIGHT,
+}
 
 type Item struct {
     Entity
@@ -173,24 +186,89 @@ type Item struct {
     // be crafted nor harvested, nor mined.    
     Level         int
     // Id's of ingredients to craft this item. Empty if it cannot be crafted.
-    Ingredients []ID
+    Ingredients []string
     // Id of item this item can be upgraded/enhanced to. empty or "none"
     // if it cannot be upgraded.
-    Upgrade       ID
+    Upgrade       string
     // ID of item this item can degrade into. empty or "none" if cannot be 
     // degraded.
-    Degrade       ID
+    Degrade       string
     // ID of technique/art/item to craft this item teaches when used, empty or 
     // none if it teaches nothing. If it's a skill, the XP of teaching is 
     // determined by the Quality of the item.   
-    Teaches       ID
+    Teaches       string
 }
 
+// Load an item from a sitef file.
+func LoadItem(dirname string, id string) (item *Item, err error) {
+    
+    path := SavePathFor(dirname, "item", id)
+    
+    records, err := sitef.ParseFilename(path)
+    if err != nil {
+        return nil, err
+    }
+    
+    if len(records) < 1 {
+        return nil, errors.New("No item found!")
+    }
+    
+    record := records[0]
+    monolog.Info("Loading Item record: %s %v", path, record)
+    
+    item = new(Item)
+    item.Entity.LoadSitef(record)
+    /*
+    account.Name            = record.Get("name")
+    account.Hash            = record.Get("hash")
+    account.Algo            = record.Get("algo")
+    account.Email           = record.Get("email")
+    account.Points          = record.GetIntDefault("points", 0)
+    account.Privilege       = Privilege(record.GetIntDefault("privilege", 
+                                int(PRIVILEGE_NORMAL)))
+    
+    var nchars int
+    nchars                  = record.GetIntDefault("characters", 0)
+    _ = nchars    
+    */
+    monolog.Info("Loaded Item: %s %v", path, item)
+    return item, nil
+}
+
+
+
 type ItemPointer struct {
-    ID     ID
+    ID     string
     item * Item
 }
 
+type Equipment struct {
+    Equipped map[EquipWhere] * Item
+}
 
+
+func (me * Equipment) SaveSitef(rec sitef.Record) (err error) {
+    for k, v := range(me.Equipped) {
+        if v != nil {
+            key := fmt.Sprintf("equipment[%s]", k)
+            rec.Put(key, v.ID)
+        }
+    }
+    return nil
+}
+
+func (me * Equipment) LoadSitef(rec sitef.Record, world *World, dirname string) (err error) {
+    for k := range(EquipWhereList) {
+        key := fmt.Sprintf("equipment[%s]", k)
+        val, ok := rec.MayGet(key)
+        if ok {   
+            item, err := world.LoadItem(val)
+            if item != nil && err == nil {
+               me.Equipped[EquipWhere(k)] = item
+            }               
+        }
+    }
+    return nil
+}
 
 

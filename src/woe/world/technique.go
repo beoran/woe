@@ -10,11 +10,11 @@ package world
  
 type Technique struct {
     Entity
-    Kind        ID
-    Effect      ID
+    Kind        string
+    Effect      string
     Level       int
     Cost        int
-    Skill       ID
+    Skill       string
     skill     * Skill
     onUse       func (me * Technique, caster * Being, targets ...*Being) (bool)
 }
@@ -23,8 +23,8 @@ type Technique struct {
 type BeingTechnique struct {
     being       * Being
     technique   * Technique
-    Being         ID
-    Technique     ID
+    Being         string
+    Technique     string
 }
 
 /* An exploit is a special technique that can only be used a few times 
@@ -41,8 +41,8 @@ type Exploit    Technique
 type BeingExploit struct {
     being       * Being
     exploit     * Exploit
-    Being         ID
-    Exploit       ID
+    Being         string
+    Exploit       string
     // How many times the exploit may be used.
     Uses          Vital
 }

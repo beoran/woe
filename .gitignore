@@ -28,4 +28,5 @@ build
 doc/nd
 doc/nd_project
 .tup
-woe.log
+*.log
+*.sitef

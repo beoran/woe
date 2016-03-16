@@ -1,22 +1,22 @@
 package world
 
 const (
-    TALENT_NONE ID = "TALENT_NONE"
-    TALENT_STR  ID = "STR"
-    TALENT_TOU  ID = "TOU"
-    TALENT_AGI  ID = "AGI"
-    TALENT_DEX  ID = "DEX"
-    TALENT_INT  ID = "INT"
-    TALENT_WIS  ID = "WIS"
-    TALENT_CHA  ID = "CHA"
-    TALENT_EMO  ID = "EMO"
+    TALENT_NONE string = "TALENT_NONE"
+    TALENT_STR  string = "STR"
+    TALENT_TOU  string = "TOU"
+    TALENT_AGI  string = "AGI"
+    TALENT_DEX  string = "DEX"
+    TALENT_INT  string = "INT"
+    TALENT_WIS  string = "WIS"
+    TALENT_CHA  string = "CHA"
+    TALENT_EMO  string = "EMO"
 )
     
 
 type Skill struct {
     Entity
-    Kind              ID
-    Talent            ID
+    Kind              string
+    Talent            string
     derived           func (m * Being)  int
 }
 
@@ -85,7 +85,7 @@ var SkillList = []Skill {
       Short: "Martial arts and unarmed fighting, use of gloves.", },
       Talent : TALENT_TOU,
     },
-    { Entity : Entity { ID: "skill_mauls", Name: "Mauls", 
+    { Entity : Entity { ID: "skill_maul", Name: "Maul", 
       Short: "Fighting with heavy meelee weapons such as axes and hammers", },
       Talent : TALENT_TOU,
     },
@@ -156,7 +156,7 @@ var SkillList = []Skill {
       Talent : TALENT_AGI,
     },
     { Entity : Entity { ID: "skill_traveling", Name: "Traveling", 
-      Short: "Efficient traveling and skills to reduce MP efficiency", },
+      Short: "Efficient traveling and skills to reduce MP use.", },
       Talent : TALENT_AGI,
     },
  

@@ -7,6 +7,10 @@ import "fmt"
 import "bytes"
 import "bufio"
 import "strconv"
+import "reflect"
+import "errors"
+import "github.com/beoran/woe/monolog"
+
 
 // Sitef format for serialization
 // Sitef is a simple text format for serializing data to
@@ -56,13 +60,24 @@ func (me * Record) PutInt(key string, val int) {
     me.Putf(key, "%d", val)
 }
 
+
+func (me * Record) PutInt64(key string, val int64) {
+    me.Putf(key, "%d", val)
+}
+
 func (me * Record) PutFloat64(key string, val float64) {
     me.Putf(key, "%lf", val)
 }
 
+func (me Record) MayGet(key string) (result string, ok bool) {
+    result, ok = me[key]
+    return result, ok
+}
+
 
 func (me Record) Get(key string) (result string) {
-    return me[key]
+    result= me[key]
+    return result
 }
 
 func (me Record) Getf(key string, format string, 
@@ -91,6 +106,54 @@ func (me Record) GetIntDefault(key string, def int) (val int) {
 
 func (me Record) GetFloat(key string) (val float64, error error) {
     return strconv.ParseFloat(me.Get(key), 64)
+}
+
+func (me * Record) convSimple(typ reflect.Type, val reflect.Value) (res string, err error) {
+    switch val.Kind() {
+    case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+    return strconv.FormatInt(val.Int(), 10), nil
+        
+    case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
+    return strconv.FormatUint(val.Uint(), 10), nil
+    
+    case reflect.Float32, reflect.Float64:
+    return strconv.FormatFloat(val.Float(), 'g', -1, val.Type().Bits()), nil
+    case reflect.String:
+    return val.String(), nil
+    case reflect.Bool:
+    return strconv.FormatBool(val.Bool()), nil
+    default: 
+    return "", errors.New("Unsupported type")
+    }
+}
+
+
+func (me Record) PutValue(key string, value reflect.Value) {
+    switch (value.Kind()) {
+        case reflect.Int, reflect.Int32, reflect.Int64:
+            me.Putf(key, "%d", value.Int())
+        case reflect.Uint, reflect.Uint32, reflect.Uint64:
+            me.Putf(key, "%d", value.Uint())
+        case reflect.Float32, reflect.Float64:
+            me.Putf(key, "%f", value.Float())
+        case reflect.String:
+            me.Putf(key, "%s", value.String())
+        default:
+            me.Put(key, "???")
+    }
+}
+
+func (me Record) PutStruct(prefix string, structure interface {}) {
+    st := reflect.TypeOf(structure)
+    vt := reflect.ValueOf(structure)
+    monolog.Info("PutStruct: type %v value %v\n", st, vt)
+    
+    for i:= 0 ; i < st.NumField() ; i++ {
+        field := st.Field(i)
+        key := strings.ToLower(field.Name)
+        value :=  vt.Field(i).String()
+        me.Put(prefix + key, value)
+    }
 }
 
 

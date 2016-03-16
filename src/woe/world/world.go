@@ -11,23 +11,21 @@ import "errors"
  * is kept statically delared in code for simplicity.
 */
 
-/* ID used for anything in a world but the world itself and the account. */
-type ID string 
-
 
 type World struct {
     Name                      string
     MOTD                      string
-    entitymap       map[ID] * Entity
-    zonemap         map[ID] * Zone
+    dirname                   string
+    entitymap       map[string] * Entity
+    zonemap         map[string] * Zone
     zones                [] * Zone
-    charactermap    map[ID] * Character
+    charactermap    map[string] * Character
     characters           []   Character
-    roommap         map[ID] * Room
+    roommap         map[string] * Room
     rooms                []   Room
-    itemmap         map[ID] * Item
+    itemmap         map[string] * Item
     items                []   Item
-    mobilemap       map[ID] * Mobile
+    mobilemap       map[string] * Mobile
     mobiles              []   Mobile
     accounts             [] * Account
     accountmap      map[string] * Account
@@ -45,18 +43,22 @@ func (me * World) AddWoeDefaults() {
     */
 }
 
-func NewWorld(name string, motd string) (*World) {
+func NewWorld(name string, motd string, dirname string) (*World) {
     world := new(World)
-    world.Name = name
-    world.MOTD = motd
-    world.accountmap = make(map[string] * Account)
-    
+    world.Name          = name
+    world.MOTD          = motd
+    world.dirname       = dirname
+    world.accountmap    = make(map[string] * Account)
+    world.itemmap       = make(map[string] * Item)
+    world.roommap       = make(map[string] * Room)
+    world.charactermap  = make(map[string] * Character)
+
     world.AddWoeDefaults()
     return world;
 }
 
 
-func HaveID(ids [] ID, id ID) bool {
+func HaveID(ids [] string, id string) bool {
     for index := 0 ; index < len(ids) ; index++ {
         if ids[index] == id { return true }  
     }
@@ -101,7 +103,7 @@ func LoadWorld(dirname string, name string) (world * World, err error) {
     record := records[0]
     monolog.Info("Loading World record: %s %v", path, record)
     
-    world = NewWorld(record.Get("name"), record.Get("motd"))
+    world = NewWorld(record.Get("name"), record.Get("motd"), dirname)
     monolog.Info("Loaded World: %s %v", path, world)
     return world, nil
 }
@@ -118,13 +120,13 @@ func (me * World) GetAccount(name string) (account * Account) {
 
 // Loads an account to be used with this world. Characters will be linked.
 // If the account was already loaded, returns that in stead.
-func (me * World) LoadAccount(dirname string, name string) (account *Account, err error) {
+func (me * World) LoadAccount(name string) (account *Account, err error) {
     account = me.GetAccount(name)
     if (account != nil) {
         return account, nil
     }
     
-    account, err = LoadAccount(dirname, name);
+    account, err = LoadAccount(me.dirname, name);
     if err != nil {
         return account, err
     }
@@ -144,4 +146,39 @@ func (me * World) RemoveAccount(name string) {
 // Default world pointer
 var DefaultWorld * World
 
+
+// Returns an item that has already been loaded or nil if not found
+func (me * World) GetItem(id string) (item * Item) {
+    item, ok := me.itemmap[id]
+    if !ok {
+        return nil
+    }
+    return item
+} 
+
+// Loads an item to be used with this world. 
+// If the item was already loaded, returns that in stead.
+func (me * World) LoadItem(id string) (item *Item, err error) {
+    item = me.GetItem(id)
+    
+    if (item != nil) {
+        return item, nil
+    }
+    
+    item, err = LoadItem(me.dirname, id);
+    if err != nil {
+        return item, err
+    }
+    me.itemmap[item.ID] = item
+    return item, nil
+}
+
+// Removes an item from this world by ID.
+func (me * World) RemoveItem(id string) {
+    _, have := me.itemmap[id]
+    if (!have) {
+        return
+    }    
+    delete(me.itemmap, id)
+}
 

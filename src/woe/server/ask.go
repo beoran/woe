@@ -10,9 +10,10 @@ import "github.com/beoran/woe/monolog"
 import "bytes"
 import "regexp"
 // import "fmt"
-// import "strconv"
+import "strconv"
+// import "strings"
 
-
+const NEW_CHARACTER_PRICE = 4
   
 // Switches to "password" mode.
 func (me * Client) PasswordMode() telnet.Event {
@@ -103,21 +104,74 @@ func (me * Client) AskSomething(prompt string, re string, nomatch_prompt string,
       me.NormalMode()
       me.Printf("\n")
     }
-    
+        
     return something
-  }
-  
+}
 
-const LOGIN_RE = "^[A-Za-z][A-Za-z0-9]+$"
+func (me * Client) AskYesNo(prompt string) bool {
+    res := me.AskSomething(prompt + " (y/n)","[ynYN]", "Please answer y or n.", false)
+    if res[0] == 'Y'|| res[0] == 'y' { 
+        return true
+    } else {
+        return false
+    }    
+}
+
+func (me * Client) AskEntityListOnce(heading string, prompt string, noecho bool, elist world.EntitylikeSlice) (result world.Entitylike) { 
+    list := elist.FilterPrivilege(me.account.Privilege)
+    me.Printf("\n%s\n\n",heading)
+    for i, v := range(list) {
+        e := v.AsEntity()
+        me.Printf("[%d] %s: %s\n", i+1, e.Name, e.Short)
+    }
+    me.Printf("\n")
+    aid := me.AskSomething(prompt, "", "", false);
+    iresp, err := strconv.Atoi(string(aid))
+    if err != nil { /* Try name. */
+        e := list.FindName(string(aid))
+        if e != nil {
+            return e
+        } else {
+            me.Printf("Name not found in list. Please choose a number or name from the list above.\n")
+        }
+    } else if (iresp>0) && (iresp<=len(list)) { /* In range. */
+        return list[iresp-1]
+    } else {
+        me.Printf("Please choose a number or name from the list above.\n")
+    }
+    return nil
+}
+    
+
+func (me * Client) AskEntityList(heading string, prompt string, noecho bool, list world.EntitylikeSlice) (result world.Entitylike) {     
+    for {
+        result = me.AskEntityListOnce(heading, prompt, noecho, list)
+        if result != nil {
+            e := result.AsEntity()
+            me.Printf("\n%s: %s\n\n%s\n\n", e.Name, e.Short, e.Long)
+            if noecho || me.AskYesNo("Confirm?") {
+                return result
+            }
+        }
+    }
+}
+    
+
+const LOGIN_RE = "^[A-Za-z]+$"
 
 func (me * Client) AskLogin() []byte {
     return me.AskSomething("Login", LOGIN_RE, "Login must consist of a letter followed by letters or numbers.", false)
 }
 
+
 const EMAIL_RE = "@"
 
 func (me * Client) AskEmail() []byte {
     return me.AskSomething("E-mail", EMAIL_RE, "Email must have at least an @ in there somewhere.", false)
+}
+
+func (me * Client) AskCharacterName() []byte {
+    return me.AskSomething("Character Name", LOGIN_RE, "Character name consisst of letters only.", false)
 }
 
 func (me * Client) AskPassword() []byte {
@@ -131,20 +185,6 @@ func (me * Client) AskRepeatPassword() []byte {
 func (me * Client) HandleCommand() {
     command := me.ReadCommand()
     me.ProcessCommand(command)
-    /*
-    if bytes.HasPrefix(command, []byte("/quit")) {
-      me.Printf("Byebye!\n")
-      me.alive = false
-    } else if bytes.HasPrefix(command, []byte("/shutdown")) {
-      me.server.Broadcast("Shutting down server NOW!\n")
-      me.server.Shutdown();
-    } else if bytes.HasPrefix(command, []byte("/restart")) {
-      me.server.Broadcast("Restarting down server NOW!\n")
-      me.server.Restart();
-    } else {
-      me.server.Broadcast("Client %d said %s\r\n", me.id, command)  
-    }
-    */
 }
  
 func (me * Client) ExistingAccountDialog() bool {
@@ -212,7 +252,7 @@ func (me * Client) AccountDialog() bool {
         return false 
     }
     
-    me.account, err = me.server.World.LoadAccount(me.server.DataPath(), string(login))    
+    me.account, err = me.server.World.LoadAccount(string(login))    
     if err != nil {
         monolog.Warning("Could not load account %s: %v", login, err)  
     }
@@ -222,19 +262,57 @@ func (me * Client) AccountDialog() bool {
       return me.NewAccountDialog(string(login))
     }
 }
+
+func (me * Client) NewCharacterDialog() bool {
+    me.Printf("New character:\n")
+    charname := me.AskCharacterName()
+    
+    kin := me.AskEntityList("Please choose the kin of this character", "Kin of character? ", false, world.KinEntityList)
+    me.Printf("%s %v\n", charname, kin)
+     
+    gender := me.AskEntityList("Please choose the gender of this character", "Gender? ", false, world.GenderList)
+    me.Printf("%s %v\n", charname, gender)
+
+    job := me.AskEntityList("Please choose the job of this character", "Job? ", false, world.JobEntityList)
+    me.Printf("%s %v\n", charname, job)
+    
+    character := world.NewCharacter(me.account, 
+                    string(charname), kin, gender, job)
+    
+    me.Printf("%s", character.Being.ToStatus());
+    
+    ok := me.AskYesNo("Is this character ok?")
+    
+    if (!ok) {
+        me.Printf("Character creation canceled.\n")
+        return true
+    }
+    
+    me.account.AddCharacter(character)
+    me.account.Points -= NEW_CHARACTER_PRICE 
+    me.account.Save(me.server.DataPath())
+    character.Save(me.server.DataPath())
+    me.Printf("Character %s saved.\n", character.Being.Name)
+    
+
+    return true
+}    
+
  
 func (me * Client) CharacterDialog() bool {
-    login  := me.AskLogin()
-    if login == nil { return false }
-    var err error
-    me.account, err = world.LoadAccount(me.server.DataPath(), string(login))    
-    if err != nil {
-        monolog.Warning("Could not load account %s: %v", login, err)  
+    me.Printf("You have %d remaining points.\n", me.account.Points)
+    for me.account.NumCharacters() < 1 {
+        me.Printf("You have no characters yet!\n")
+        if (me.account.Points > 0) {
+            me.NewCharacterDialog();
+        } else {
+            me.Printf("Sorry, you have no points left to make new characters!\n")
+            me.Printf("Please contact the staff of WOE if you think this is a mistake.\n")
+            me.Printf("Disconnecting!\n")
+            return false 
+        }
     }
-    if me.account != nil {
-      return me.ExistingAccountDialog()
-    } else {
-      return me.NewAccountDialog(string(login))
-    }
+    return true
 }
+ 
 

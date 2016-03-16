@@ -3,8 +3,8 @@ package world
 
 
 type Inventory struct {
-    ItemIDS []int
-    items   []Item   
+    items   []*Item
+    Equipment map[string] string   
 }
 
 

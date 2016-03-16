@@ -3,8 +3,11 @@ package world
 import (
     "fmt"
     "strings"
-    //"github.com/beoran/woe/sitef"
+    "github.com/beoran/woe/sitef"
+    "github.com/beoran/woe/monolog"
+    "math"
 )
+
 
 /* Aptitudes of a being, species or profession */
 type Aptitudes struct {
@@ -13,6 +16,7 @@ type Aptitudes struct {
     Techniques  []BeingTechnique
     Exploits    []BeingExploit
 }
+
 
 /* Kind of a being or "Kin" for short*/
 type Kin struct {
@@ -38,12 +42,13 @@ type Kin struct {
 }
 
 
-func NewKin(id ID, name string) * Kin {
+func NewKin(id string, name string) * Kin {
     res := new(Kin)
     res.ID = id;
     res.Name = name
     return res
 }
+
 
 /* Job of a being */
 type Job struct {
@@ -53,11 +58,11 @@ type Job struct {
     // Vitals modifiers of the profession
     Vitals
     // Map of skills that this job starts with and their levels.
-    Skills      map[ID] int
+    Skills      map[string] int
     // Same for arts and techniques and exploits
-    Arts        map[ID] int
-    Techniques  map[ID] int
-    Exploits    map[ID] int
+    Arts        map[string] int
+    Techniques  map[string] int
+    Exploits    map[string] int
     // if a player can choose this or not    
     Playable    bool
 }
@@ -80,87 +85,157 @@ var Genders = struct {
     Genderless      Gender
 }{
     Gender {
-    Entity : Entity{ ID: "female", Name: "Female"},
-    Talents : Talents { Agility: 1, Charisma: 1 }, 
-    }, 
-
-    Gender { 
-    Entity : Entity{ ID: "male", Name: "Male"},
-    Talents : Talents { Strength: 1, Intelligence: 1 },
+        Entity : Entity{ID: "gender_female", Name: "Female",
+            Short: "Female gender",
+            Long: "No matter the day and age, there are still plenty of beings who are female. Females are slighly more agile and charismatic than those who have another gender.",
+            },
+        Talents : Talents {Agility: 1, Charisma: 1 }, 
     }, 
 
     Gender {
-    Entity : Entity{ ID: "intersex", Name: "Intersex"},
-    Talents : Talents { Dexterity: 1, Wisdom: 1 }, 
+        Entity : Entity{ID: "gender_male", Name: "Male",
+            Short: "Male gender",
+            Long: "No matter the day and age, there are still plenty of beings who are male. Males are slighly more strong and studious than those who have another gender.",
+        },
+        Talents : Talents {Strength: 1, Intelligence: 1 },
+    }, 
+
+    Gender {
+        Entity : Entity{ID: "gender_intersex", Name: "Intersex",
+            Short: "Intersexed",
+            Long: "Not every being can be clearly defined as being male or female. Sometimes, certain beings end up characteristics of both. Intersexed are slighly more dexterous and wise than those who have another gender.",
+            },
+        Talents : Talents {Dexterity: 1, Wisdom: 1 }, 
     },
 
     Gender {
-    Entity : Entity{ ID: "genderless", Name: "Genderless"},
-    Talents : Talents { Toughness: 1, Emotion: 1 }, 
+        Entity : Entity{ID: "gender_none", Name: "Genderless",
+            Short: "No gender",
+            Long: "Some beings lack reproductive sytems and are therefore genderless. Genderless are slighly more tough and emotionally balanced than those who have another gender.",
+        },
+        Talents : Talents {Toughness: 1, Emotion: 1 }, 
     },
     
 }
 
 
-var GenderList  = []*Gender{&Genders.Female, &Genders.Male, 
+type EntitylikeSlice []Entitylike
+
+var GenderList  = EntitylikeSlice{&Genders.Female, &Genders.Male, 
     &Genders.Intersex, &Genders.Genderless }
 
-var GenderMap = map[ID]*Gender {
+var GenderMap = map[string]*Gender {
     Genders.Female.ID       : &Genders.Female,
     Genders.Male.ID         : &Genders.Male,
     Genders.Intersex.ID     : &Genders.Intersex,
     Genders.Genderless.ID   : &Genders.Genderless,
 }
 
+type EntityIterator interface  {
+    Each(cb func (Entitylike) (Entitylike)) (Entitylike)
+}
 
+func (me EntitylikeSlice) Each(cb func (Entitylike) (Entitylike)) (Entitylike) {
+    for i := 0; i <  len(me) ; i++ {
+        res := cb(me[i])
+        if (res != nil) {
+            return res
+        }
+    }
+    return nil
+}
+
+func (me EntitylikeSlice) Filter(cb func (Entitylike) (Entitylike)) (EntitylikeSlice) {
+    result := make(EntitylikeSlice, 0)
+    for i := 0; i <  len(me) ; i++ {
+        res := cb(me[i])
+        if (res != nil) {
+            result = append(result, res)
+        }
+    }
+    return result
+}
+
+/* Finds the name irrespecful of the case */
+func (me EntitylikeSlice) FindName(name string) (Entitylike) {
+    return me.Each(func (e Entitylike) (Entitylike) {
+        if strings.ToLower(e.AsEntity().Name) == strings.ToLower(name) {
+            return e
+        } else {
+            return nil
+        }
+    })
+}
+
+/* Filters the list by privilege level (only those allowed by the level are retained) */
+func (me EntitylikeSlice) FilterPrivilege(privilege Privilege) (EntitylikeSlice) {
+    return me.Filter(func (e Entitylike) (Entitylike) {
+        if (e.AsEntity().Privilege <= privilege) {
+            return e
+        } else {
+            return nil
+        }
+    })
+}
+
+func EntitylikeToGender(me Entitylike) (*Gender) {
+    v, ok := me.(*Gender)
+    if ok {
+        return v
+    } else {
+        return nil
+    }
+}
 
 /* All Kins of  WOE */
-var KinList = [] Kin {  
-    {   Entity: Entity {
+var KinList = [] Kin {
+    Kin {
+        Entity: Entity {
             ID: "kin_human", Name: "Human",
             Short: "The primordial conscious beings on Earth.",
             Long: 
 `Humans are the primordial kind of conscious beings on Earth. 
-They excel at nothing in particular, but are fast learners.`,      
+They excel at nothing in particular, but are fast learners.`,
         },
         // No talents because humans get no talent bonuses
         // No stats either because no bonuses there either.
         Arts : 1.0,
-        Playable : true,
+        Techniques : 1.0,
     },
-    {   Entity: Entity {
+    {
+        Entity: Entity {
             ID: "kin_neosa", Name: "Neosa",
             Short: "Nimble beings, skilled in the Arts.",
             Long: 
 `Neosa are descendents of humans genetically modified to be lite, agile 
 and skilled with the Numen Arts. They are less tough and strong, and less adept
-with techniques`,
+with techniques. They can be recognized by their extremely long and pointy ears.`,
         },
         
         // AGI+1 EMO+1 STR-1 TOU-1 
-        Talents : Talents { Strength : -1, Toughness: -1, 
+        Talents : Talents {Strength : -1, Toughness: -1, 
             Agility : 1, Emotion : 1, },
         Arts        : 1.2,
         Techniques  : 0.8,
-        Playable    : true,
     },
-    {   Entity: Entity {
+    {
+        Entity: Entity {
             ID: "kin_mantu", Name: "Mantu",
-            Short: "Hardy, stocky beings, skilled in the Techniques.",
+            Short: "Hardy, stocky, furry beings, skilled in the Techniques.",
             Long: 
 `Mantu are descendents of humans genetically modified to be hardy, stocky 
 and skilled with Techniques. They are somewhat less agine and less adept with 
-Numen Arts than humans.`,
+Numen Arts than humans. They have a soft fur which covers their whole body.`,
         },
         // STR+1 1 TOU+1  AGI-1 EMO-1 
-        Talents : Talents { Strength : +1, Toughness: +1, 
+        Talents : Talents {Strength : +1, Toughness: +1, 
             Agility : -1, Emotion : -1, },
         
         Arts : 0.8,
         Techniques : 1.2,
-        Playable : true,
     },
-    {   Entity: Entity {
+    {
+        Entity: Entity {
             ID: "kin_cyborg", Name: "Cyborg",
             Short: "Human enhanced with robotic parts. ",
             Long: 
@@ -171,14 +246,14 @@ as effective. They are partially mechanical and healing arts and medication
 is not as effective on them, but they can be repaired.`,
         },
         // STR+1 1 TOU+1 DEX+1 INT+1 
-        Talents : Talents { Strength : +1, Toughness: +1, 
+        Talents : Talents {Strength : +1, Toughness: +1, 
             Dexterity : +1, Intelligence: +1, },
         Arts : 0.5,
         Techniques : 1.5,
         Mechanical : 0.5,
-        Playable : true,
     },
-    {   Entity: Entity {
+    {
+        Entity: Entity {
             ID: "kin_android", Name: "Android",
             Short: "Human shaped biomchanical robot at the service of humans. ",
             Long: 
@@ -187,15 +262,15 @@ Highly effective with Techniques, and can install many Parts, but cannot use
 any Nummen arts. Since thay are not alive, they technically cannot die.`,
         },
         // STR+1 1 TOU+1 DEX+1 INT+1 
-        Talents : Talents { Strength : +2, Toughness: +2, 
+        Talents : Talents {Strength : +2, Toughness: +2, 
             Dexterity : +2, Intelligence: +2, },
         Arts : 0.0,
         Techniques : 2.0,
         Mechanical : 1.0,
-        Playable : true,
     },
-    
-    {   Entity: Entity {
+
+    {
+        Entity: Entity {
             ID: "kin_maverick", Name: "Maverick",
             Short: "Human shaped biomechanical robot running wild. ",
             Long: 
@@ -203,18 +278,18 @@ any Nummen arts. Since thay are not alive, they technically cannot die.`,
 been destroyed or disabled.  Highly effective with Techniques, and can install 
 many Parts, but cannot use any Nummen arts. Since thay are not alive, they 
 technically cannot die.  They are feared by Humans and hated by Androids.`,
+            Privilege: PRIVILEGE_IMPLEMENTOR,
         },
-        // STR+1 1 TOU+1 DEX+1 INT+1 
-        Talents : Talents { Strength : +3, Toughness: +3, 
+          // STR+1 1 TOU+1 DEX+1 INT+1 
+        Talents : Talents {Strength : +3, Toughness: +3, 
             Dexterity : +2, Intelligence: +2, Charisma: -2 },
         Arts : 0.0,
         Techniques : 2.0,
         Mechanical : 1.0,
-        Playable : false,
     },
-    
-    
-    {   Entity: Entity {
+
+    {
+        Entity: Entity {
             ID: "kin_robot", Name: "Robot",
             Short: "Non conscious mechanical robot.",
             Long: 
@@ -222,33 +297,35 @@ technically cannot die.  They are feared by Humans and hated by Androids.`,
 Unfortunately, they are self repairing and often even able to replicate 
 if they find suitable materials. No wonder they are still prowling
 the Earth millennia after.`,
+            Privilege: PRIVILEGE_IMPLEMENTOR,
         },
-        // STR+1 1 TOU+1 DEX+1 INT+1 
-        Talents : Talents { Strength : +4, Toughness: +4, 
+          // STR+1 1 TOU+1 DEX+1 INT+1 
+        Talents : Talents {Strength : +4, Toughness: +4, 
             Dexterity : +2, Intelligence: +2, Charisma: -4},
         Arts : 0.0,
         Techniques : 2.0,
         Mechanical: 1.0,
-        Playable : false,
     },
-    
-    {   Entity: Entity {
+
+    {
+        Entity: Entity {
             ID: "kin_drone", Name: "Drone",
             Short: "Flying combat robot. ",
             Long: 
 `Out of control robots are a pain, out of control flying robots even more so!
 They might be less though than normal robots, but they move extremely quickly.
 `,
+            Privilege: PRIVILEGE_IMPLEMENTOR,
         },
-        Talents : Talents { Strength : +2, Toughness: +2, 
+          Talents : Talents {Strength : +2, Toughness: +2, 
             Agility: +4, Dexterity : +2, Intelligence: +2, Charisma: -4},
         Arts : 0.0,
         Techniques : 2.0,
         Mechanical : 1.0,
-        Playable : false,
-
     },
-    {   Entity: Entity {
+
+    {
+        Entity: Entity {
             ID: "kin_turret", Name: "Turret",
             Short: "Immobile automated defense system. ",
             Long: 
@@ -256,64 +333,82 @@ They might be less though than normal robots, but they move extremely quickly.
 The ancients would set up robotic defense system to guard certain areas.
 These defense systems might be immobile, but they are deadly accurate.
 Furthermore they are extremely resillient and self repairing. 
-No wonder they are still actve after all these years.
+No wonder they are still active after all these years.
 `,
+            Privilege: PRIVILEGE_IMPLEMENTOR,
         },
-        Talents : Talents { Strength : +2, Toughness: +4, 
+        Talents : Talents {Strength : +2, Toughness: +4, 
             Agility: -4, Dexterity : +4, Intelligence: +4, Charisma: -4},
         Arts : 0.0,
         Techniques : 2.0,
         Mechanical : 1.0,
-        Playable : false,
     },
     
-    {   Entity: Entity {
+
+    {
+        Entity: Entity {
             ID: "kin_beast", Name: "Beast",
             Short: "Beast that prowls the wild. ",
             Long: 
 `Due to the damage to the ecosystem, beasts have rapidly evolved in the last 
 60000 years. As a result, most all of them, even the plant eaters, are ferocious 
 and aggressive, to protect themselves and their offspring from Humans.`,
+            Privilege: PRIVILEGE_IMPLEMENTOR,
         },
-        Talents : Talents { Strength : +2, Toughness: +2, 
+          Talents : Talents {Strength : +2, Toughness: +2, 
             Agility : +1, Intelligence: -5, },
+        Arts : 1.0,
+        Techniques : 1.0,
     },
-
-    {   Entity: Entity {
+    
+    {
+        Entity: Entity {
             ID: "kin_bird", Name: "Bird",
             Short: "Flying being that prowls the wild. ",
             Long: 
 `Beasts can be dangerous, flying beasts are all the more so! 
 They might be less resillient, but all the more agile.`,
+            Privilege: PRIVILEGE_IMPLEMENTOR,
         },
-        Talents : Talents { Strength : +1, Toughness: +1, 
+          Talents : Talents {Strength : +1, Toughness: +1, 
             Agility : +3, Intelligence: -5, },
+        Arts : 1.0,
+        Techniques : 1.0,
     },
 
-    {   Entity: Entity {
+    {
+        Entity: Entity {
             ID: "kin_fish", Name: "Fish",
             Short: "Fish like being that swims the seas or rivers. ",
             Long: 
 `Now you know why you were always told not to swim in rivers or seas.
 Fish dart through the water, attacking with their razor sharp teeth.
 `,
+            Privilege: PRIVILEGE_IMPLEMENTOR,
         },
-        Talents : Talents { Strength : +3, Toughness: +2, 
+          Talents : Talents {Strength : +3, Toughness: +2, 
             Agility : +2, Intelligence: -5, },
+        Arts : 1.0,
+        Techniques : 1.0,
     },
 
-    {   Entity: Entity {
+    {
+        Entity: Entity {
             ID: "kin_amphibian", Name: "Amphibian",
             Short: "Being that lives both on land and in the water. ",
             Long: 
 `Covered with a slimy skin and often toxic, these being can not only swim 
 but also purse you on land.`,
+            Privilege: PRIVILEGE_IMPLEMENTOR,
         },
-        Talents : Talents { Strength : +1, Toughness: +2, 
+          Talents : Talents {Strength : +1, Toughness: +2, 
             Agility : +1, Dexterity: +1, Intelligence: -5, },
+        Arts : 1.0,
+        Techniques : 1.0,
     },
 
-    {   Entity: Entity {
+    {
+        Entity: Entity {
             ID: "kin_reptile", Name: "Reptile",
             Short: "Scaly creepy crawling beasts.",
             Long: 
@@ -321,54 +416,78 @@ but also purse you on land.`,
 a long time still. They may be slow, especially in colder weather, nevertheless
 they remain dangerous.
 `,
+            Privilege: PRIVILEGE_IMPLEMENTOR,
         },
-        Talents : Talents { Strength : +2, Toughness: +2, 
+          Talents : Talents {Strength : +2, Toughness: +2, 
             Agility: -1, Intelligence: -5, },
+        Arts : 1.0,
+        Techniques : 1.0,
     },
-    {   Entity: Entity {
+ 
+    {
+        Entity: Entity {
             ID: "kin_crustacean", Name: "Custacian",
             Short: "Beast protected by a tough shell",
             Long: 
 `You might find it hard to inflict any damage to these well armoured beings.
 Their shells protect them against damage and allow them to live in the water
 and as well on the land.`,
+            Privilege: PRIVILEGE_IMPLEMENTOR,
+
         },
-        Talents : Talents { Strength : +2, Toughness: +4, 
+        Talents : Talents {Strength : +2, Toughness: +4, 
                             Intelligence: -5,  },
+        Arts : 1.0,
+        Techniques : 1.0,
     },
-    {   Entity: Entity {
+    
+    {
+        Entity: Entity {
             ID: "kin_insect", Name: "Insect",
             Short: "Beast with articulated legs and bodies.",
             Long: 
 `The climate of Earth hs shifted dramaticaly over the last 60000 years,
 and as a result, larger creepy crawlers became more successful.
 `,
+            Privilege: PRIVILEGE_IMPLEMENTOR,
+
         },
-        Talents : Talents { Strength : +2, Toughness: +4,  Intelligence: -5, },
+        Talents : Talents {Strength : +2, Toughness: +4,  Intelligence: -5, },
+        Arts : 1.0,
+        Techniques : 1.0,
     },
 
-
-    {   Entity: Entity {
+    {
+        Entity: Entity {
             ID: "kin_aquatic", Name: "beast",
             Short: "Aquatic beast. ",
             Long: 
 `Whether in the rivers or the deep seas, these soft bodies creatures 
 are often toxic and quite dangerous.`,
         },
-        Talents : Talents { Strength : +2, Dexterity: +2, Intelligence: -5, },
+        Talents : Talents {Strength : +2, Dexterity: +2, Intelligence: -5, },
+        Arts : 1.0,
+        Techniques : 1.0,
     },
-    {   Entity: Entity {
+
+    {
+        Entity: Entity {
             ID: "kin_corrupted", Name: "corrupted",
             Short: "Beast corupted by Omen. ",
             Long: 
 `Some animals became corrupted by Omen. As a result, they became much stronger 
 and more resillient. Fortunately, the Omen is weak against certain Numen arts.
 Beware, their attacks might be contageous...`,
+            Privilege: PRIVILEGE_IMPLEMENTOR,
         },
-        Talents : Talents { Strength : +4, Toughness: +4, 
+        Talents : Talents {Strength : +4, Toughness: +4, 
             Agility : +1, Intelligence: -3, Wisdom: -5 },
+        Arts : 1.0,
+        Techniques : 1.0,
     },
-    {   Entity: Entity {
+
+    {
+        Entity: Entity {
             ID: "kin_deceased", Name: "Deceased",
             Short: "Deceased biological being animated by Omen. ",
             Long: 
@@ -378,12 +497,35 @@ Such beings are termed the Deceased. They are resillient, strong and cunning.
 Fortunately, the Omen is weak against certain Numen arts. But beware, their 
 attacks might be contageous...
 `,
+            Privilege: PRIVILEGE_IMPLEMENTOR,
         },
-        Talents : Talents { Strength : +2, Toughness: +2, 
+        Talents : Talents {Strength : +2, Toughness: +2, 
             Agility : +1, Intelligence: -1, Wisdom: -7 },
+        Arts : 1.0,
+        Techniques : 1.0,
     },
-    
+}
 
+
+var KinEntityList EntitylikeSlice
+
+func init() {
+    KinEntityList = make(EntitylikeSlice, len(KinList))
+    for i := range(KinList) {
+      e := KinList[i];
+      monolog.Debug("KinList: %s", e.Name)
+      KinEntityList[i] = &e
+    }
+}
+
+
+func EntitylikeToKin(me Entitylike) (*Kin) {
+    v, ok := me.(*Kin)
+    if ok {
+        return v
+    } else {
+        return nil
+    }
 }
 
 
@@ -393,59 +535,181 @@ attacks might be contageous...
  * worker       brawler     builder
  * hunter       gunsman     rogue
  * explorer     ranger      rebel
- * tinker       engineer    wrecker 
+ * tinker       engineer    wrecker
  * homemaker    musician    trader
  * scholar      scientist   hacker
  * medic        cleric      artist
  * esper        dilettante  (not playable) Danger
  * 
  * 
- * hunter scholar esper worker medic agent officer cleric guardian ranger wrecker engineer tinker scientist 
+ * hunter scholar esper worker medic agent officer cleric guardian ranger 
+ * wrecker engineer tinker scientist
  * 
  * 
  * 
-
-Officer                 STR + 1
-Worker                  TOU + 1
-Engineer                DEX + 1
-Hunter                  AGI + 1
-Scholar                 INT + 1
-Doctor                  WIS +1
-Cleric                  CHA + 1
-
- * 
- * 
+Agent                   STR + 2
+Worker                  TOU + 2
+Engineer                DEX + 2
+Hunter                  AGI + 2
+Scholar                 INT + 2
+Medic                   WIS + 2
+Cleric                  CHA + 2
+ *
+ *
 */
-var JobList = [] Job {  
-    {   Entity: Entity {
+var JobList = [] Job {
+    { Entity: Entity {
+            ID: "job_agent", Name: "Agent",
+            Short: "Agent employed by the government of Eruta.",
+            Long: 
+`Agents work for the government of Eruta. They are given all sorts of tasks, but tend to focus on capturing criminals. Physical strength is their forte.
+`,
+        },
+        Talents : Talents { Strength: +2 },            
+        Skills : map[string] int{
+            "skill_sword"       : 10, 
+            "skill_heavy_gear"  : 10,
+            "skill_acrobatics"  : 5,
+            "skill_cannon"      : 5,
+            "skill_weaponsmith" : 5,
+        },
+        Playable: true,
+    },
+    { Entity: Entity {
+            ID: "job_worker", Name: "Worker",
+            Short: "Worker in construction or mining.",
+            Long: 
+`Workers take on the more heavy jobs such as construction and mining. They are a tough lot.
+`,      
+        },
+        Talents : Talents { Toughness: +2 },            
+        Skills : map[string] int{
+            "skill_maul"        : 10, 
+            "skill_heavy_gear"  : 10,
+            "skill_toiling"     : 5,
+            "skill_explosives"  : 5,
+            "skill_mining"      : 5,
+        },
+        Playable: true,
+    },
+    { Entity: Entity {
+            ID: "job_engineer", Name: "Engineer",
+            Short: "Expert in machines and technology.",
+            Long: 
+`Engineers are experts in technology. They can construct and repair most any machine. They tend to be higly dexterous.
+`,      
+        },
+        Talents : Talents { Toughness: +2 },            
+        Skills : map[string] int{
+            "skill_gun"         : 10,
+            "skill_medium_gear" : 10,
+            "skill_engineering" : 5,
+            "skill_fist"        : 5,
+            "skill_gunsmith"    : 5,
+        },
+        Playable: true,
+    },
+    {Entity: Entity {
             ID: "job_hunter", Name: "Hunter",
             Short: "Hunter who chases beasts and mavericks.",
             Long: 
-`Hunters protect human settlements from Beasts and Mavericks, and try to keep their numbers down.
+`Hunters protect human settlements from Beasts and Mavericks, and try to keep their numbers down. They excel in Agility.
 `,      
         },
-        Talents : Talents { Dexterity: +2 },            
-        Skills : map[ID] int{ "skill_guns": 10,  },
+        Talents : Talents { Agility: +2 },            
+        Skills : map[string] int{
+            "skill_polearm"     : 10, 
+            "skill_medium_gear" : 10,
+            "skill_shield"      : 5,
+            "skill_gun"         : 5,
+            "skill_survival"    : 5, 
+        },
+        Playable: true,
+    },
+    {Entity: Entity {
+            ID: "job_scholar", Name: "Scholar",
+            Short: "Scholar who studies science.",
+            Long: 
+`Scolars focus in studying science and discovering what was previously unknown. Reknowned for their intelligence.
+`,      
+        },
+        Talents : Talents { Intelligence: +2 },            
+        Skills : map[string] int{
+            "skill_staff"       : 10, 
+            "skill_light_gear"  : 10,
+            "skill_science"     : 5,
+            "skill_lore"        : 5,
+            "skill_artistic"    : 5, 
+        },
+        Playable: true,
+    },
+    {Entity: Entity {
+            ID: "job_medic", Name: "Medic",
+            Short: "Medic who heals the wounded and cures the ill.",
+            Long: 
+`Medics focus on healing the wounded and curng the ill. Need wisdom to deal with their patients.
+`,      
+        },
+        Talents : Talents { Intelligence: +2 },            
+        Skills : map[string] int{
+            "skill_knife"       : 10, 
+            "skill_light_gear"  : 10,
+            "skill_medical"     : 5,
+            "skill_bravery"     : 5,
+            "skill_gun"         : 5, 
+        },
+        Playable: true,
+    },
+    {Entity: Entity {
+            ID: "job_cleric", Name: "Cleric",
+            Short: "Clerics tend to the spiritual.",
+            Long: 
+`Clerics tend to the spiritual well being of others in the name of Lord Kei. It is a job that requires high Charisma.`,
+        },
+        Talents : Talents { Charisma: +2 },            
+        Skills : map[string] int{
+            "skill_fist"        : 10, 
+            "skill_light_gear"  : 10,
+            "skill_shield"      : 5,
+            "skill_social"      : 5,
+            "skill_arcane"      : 5, 
+        },
         Playable: true,
     },
 }
 
 
+var JobEntityList EntitylikeSlice
+
+func init() {
+    JobEntityList = make(EntitylikeSlice, len(JobList))
+    for i := range(JobList) {
+      e := JobList[i];
+      monolog.Debug("JobList: %s", e.Name)
+      JobEntityList[i] = &e
+    }
+}
 
 
-
-
+func EntitylikeToJob(me Entitylike) (*Job) {
+    v, ok := me.(*Job)
+    if ok {
+        return v
+    } else {
+        return nil
+    }
+}
 
 
 
 
 type LabeledPointer struct {
-    ID ID
+    ID string
     labeled * Labeled
 }
 
 type GenderPointer struct {
-    ID ID
+    ID string
     gender * Gender
 }
 
@@ -514,10 +778,10 @@ type Being struct {
     Entity
     
     // Essentials
-    Gender          
-    Kin    
-    Job
-    Level           int
+    * Gender
+    * Kin    
+    * Job
+    Level    int
     
     // A being has talents.
     Talents
@@ -528,8 +792,7 @@ type Being struct {
     // A being has aptitudes
     Aptitudes
     
-    // Skills array
-    // Skills       []Skill
+    // Skills       map[string]BeingSkill
        
     // Arts array
     // Arts         []Art
@@ -537,14 +800,25 @@ type Being struct {
     // Affects      []Affect
        
     // Equipment
-    // Equipment
+    Equipment
     
     // Inventory
-    Inventory         Inventory
+    Inventory
     
     // Location pointer
-    room            * Room
+    Room            * Room
     
+}
+
+var BasicTalent Talents = Talents {
+    Strength       : 10,
+    Toughness      : 10,
+    Agility        : 10,
+    Dexterity      : 10,
+    Intelligence   : 10,
+    Wisdom         : 10,
+    Charisma       : 10,
+    Emotion        : 10,
 }
 
 // Derived stats 
@@ -569,7 +843,7 @@ func (me * Being) Understanding() int {
     return (me.Intelligence * 2 + me.Toughness) / 3
 }
 
-func (me * Being) Grace() int { 
+func (me * Being) Grace() int {
     return (me.Charisma * 2 + me.Agility) / 3
 }
     
@@ -577,15 +851,78 @@ func (me * Being) Zeal() int {
     return (me.Wisdom * 2 + me.Strength) / 3
 }
 
-
 func (me * Being) Numen() int {
       return (me.Emotion * 2 + me.Dexterity) / 3
 }
 
+
+/*
+
+Stats of beings: 
+ 
+
+Talents: 
+* 
+* Talents describe the basic constitution of a being.
+
+Strength: explosive physical strength
+Toughness: physical resillience
+Agility: Speed of motion and bodily balance
+Dexterity: Fine motor sills and hand eye coordination
+Intelligence: Book smarts and studiousness
+Wisdom: Insight and intution
+Emotion: Emotional control and insight.
+Charisma: Social abilities and appeal to others
+
+Force: Physical and mental vigor.
+Vitality: Resistance against damage.
+Quickness: Phyisical and mental speed.
+Knack: Manual and mental adroitness  
+Understanding: Deep insight though stubborn work.
+Grace: Appeal and delicacy of motion and presence.
+Zeal: Mental and religious perspicacity.
+Numen: Effectiveness of arts through passion and quick hands.
+
+HP: Hull Power/ Health Power: Protection against wounds. When 0, the being is 
+    likely to get stunned and vulnerable against LP damage.
+MP: Motion Power. Needed for motion and performing techniques.
+JP: Junction Power. Needed for Numen arts.   
+LP: Life Power. Resilience to actual wounds. When 0, the being dies or is
+    destroyed.
+
+Offense: Effectiveness of weapon (ranged or melee).
+Protection: Effectiveness of armor.
+Blocking: Efectiveness of shield or parrying weapon.
+Rapidity: Gain or loss of speed due to armor (may be negative). 
+
+
+Calculations:
+Life Power      LP      Vitality / 2 + KIN_LP_BONUS
+Husk Power      HP      (((Level * Vitality) div 5) + Level*2 + Vitality*2 + 8) * RACE_HP_MUL
+Junction Power  JP      ((Level * Numen) div 4) + Level*2 + Numen*2) * RACE_JP_MUL
+Motion Power    MP      (((Level * Zeal) div 4) + Level * 2 + Zeal * 2) + 30) * RACE_MP_MUL
+
+XXX: this will be changd to only include Equipment related values, skill and talent are added to the calculation later. 
+Offense         OFF     Quality of equipped weapon
+Protection      PRO     Sum of quality of equipped gear. 
+Blocking        BLO     (shield quality ) OR ( weapon skill + weapon quality ) if learned weapon's parry technique, otherwise ineffective.
+Rapidity        RAP     - weight of armor  - weight of shield - weight of weapon.
+Yield           YIE     Numen - interference penalty of gear - interference penalty of shield - interference of weapon + quality of staff if equipped + quality of equipped Focus.
+
+
+Offense
+Protection
+Block
+Rapidity
+Yield
+
+*/
+
+
 // Generates a prompt for use with the being/character
 func (me * Being) ToPrompt() string {
-    if me.Emotion > 0 {
-        return fmt.Sprintf("HP:%s MP:%s JP:%s LP:%s", me.HP.TNM(), me.MP.TNM(), me.JP.TNM, me.LP.TNM())
+    if (me.Kin != nil) && (me.Kin.Arts > 0.0) {
+        return fmt.Sprintf("HP:%s MP:%s LP:%s JP:%s", me.HP.TNM(), me.MP.TNM(), me.LP.TNM(), me.JP.TNM())
     } else {
         return fmt.Sprintf("HP:%s MP:%s LP:%s", me.HP.TNM(), me.MP.TNM(), me.LP.TNM())
     }
@@ -620,8 +957,98 @@ func (me * Being) ToStatus() string {
     status += "\n" + me.ToEquipmentValues();
     status += "\n" + me.ToPrompt();
     status += "\n"
-      return status
+    return status
 }
+
+
+func (me * Talents) GrowFrom(from Talents) {
+    me.Strength     += from.Strength
+    me.Toughness    += from.Toughness   
+    me.Agility      += from.Agility
+    me.Dexterity    += from.Dexterity
+    me.Intelligence += from.Intelligence
+    me.Wisdom       += from.Wisdom
+    me.Charisma     += from.Charisma
+    me.Emotion      += from.Emotion
+} 
+
+func (me * Vital) NewMax(max int) {
+    oldmax := me.Max
+    me.Max  = max
+    delta := me.Max - oldmax
+    me.Now += delta
+    if (me.Now > me.Max) {
+        me.Now = me.Max
+    }
+    if (me.Now < 0) {
+        me.Now = 0
+    }
+}
+
+func (me * Being) RecalculateVitals() {
+    newhp := (me.Level * me.Vitality() / 5 ) + me.Level * 2 + me.Vitality() * 2
+    newhp += 8
+    
+    me.Vitals.HP.NewMax(newhp)
+    me.Vitals.LP.NewMax((me.Vitality() / 2 + 4))
+    
+    newjp := (me.Level * me.Numen()) / 4 + me.Level * 2 + me.Numen() * 2
+    newjpf := float64(newjp)
+    newmp := (me.Level * me.Zeal()) / 4 + me.Level * 2 + me.Zeal() * 2 + 32
+    newmpf := float64(newmp)
+    
+    if me.Kin != nil {
+         newjpf *= me.Kin.Arts
+         newmpf *= me.Kin.Techniques
+    }
+    
+    me.Vitals.MP.NewMax(int(math.Floor(newjpf)))
+    me.Vitals.JP.NewMax(int(math.Floor(newmpf)))
+}
+
+
+
+func (me * Being) Init(kind string, name string, privilege Privilege, 
+              kin Entitylike, gender Entitylike, job Entitylike) (* Being) {
+    if me == nil {
+        return me
+    }
+    me.Entity.InitKind(kind, name, privilege)
+    
+
+    realkin := EntitylikeToKin(kin)
+    realgen := EntitylikeToGender(gender)
+    realjob := EntitylikeToJob(job)
+
+    monolog.Info("Init being: Kin: %v"   , realkin)
+    monolog.Info("Init being: Gender: %v", realgen)
+    monolog.Info("Init being: Job: %v"   , realjob)
+    
+    
+    me.Kin         = realkin
+    me.Gender      = realgen
+    me.Job         = realjob 
+       
+    me.Talents.GrowFrom(BasicTalent)    
+    me.Talents.GrowFrom(me.Kin.Talents)
+    me.Talents.GrowFrom(me.Gender.Talents)
+    me.Talents.GrowFrom(me.Job.Talents)
+    
+    me.Level       = 1
+    me.RecalculateVitals()
+    
+    return me
+}
+
+
+
+func NewBeing(kind string, name string, privilege Privilege, 
+              kin Entitylike, gender Entitylike, job Entitylike) (* Being) {
+    res := &Being{}
+    res.Init(kind, name, privilege, kin, gender, job)
+    return res
+}
+
 
 func (me *Being) Type() string {
     return "being"
@@ -631,10 +1058,75 @@ func (me *Being) Save(datadir string) {
     SaveSavable(datadir, me)
 }
 
-func LoadBeing(datadir string, nameid string) * Being {    
+func LoadBeing(datadir string, nameid string) * Being {
     res, _  := LoadLoadable(datadir, nameid, new(Being)).(*Being)
     return res
 }
+
+func (me * Talents) SaveSitef(rec sitef.Record) (err error) {
+    rec.PutStruct("", *me)
+    return nil
+}
+
+func (me * Vitals) SaveSitef(rec sitef.Record) (err error) {
+    rec.PutStruct("", *me)
+    return nil
+}
+
+func (me * EquipmentValues) SaveSitef(rec sitef.Record) (err error) {
+    return nil
+}
+
+func (me * Aptitudes) SaveSitef(rec sitef.Record) (err error) {
+    return nil
+}
+
+func (me * Inventory) SaveSitef(rec sitef.Record) (err error) {
+    return nil
+}
+
+
+// Save a being to a sitef record.
+func (me * Being) SaveSitef(rec sitef.Record) (err error) {
+    me.Entity.SaveSitef(rec)
+    rec.PutInt("level", me.Level)
+
+    if me.Gender != nil {
+        rec.Put("gender", me.Gender.ID)
+    }
+    
+    if me.Job != nil {
+        rec.Put("job", me.Job.ID)
+    }
+    
+    if me.Kin != nil {
+        rec.Put("kin", me.Kin.ID)
+    }
+    
+    me.Talents.SaveSitef(rec)
+    me.Vitals.SaveSitef(rec)
+    me.EquipmentValues.SaveSitef(rec)
+    me.Aptitudes.SaveSitef(rec)
+    me.Inventory.SaveSitef(rec)
+
+    if me.Room != nil {
+        rec.Put("kin", me.Room.ID)
+    }
+    
+    // TODO: saving: me.Being.SaveSitef(rec)
+    return nil
+}
+
+// Load a being from a sitef record.
+func (me * Being) LoadSitef(rec sitef.Record) (err error) {
+    me.Entity.LoadSitef(rec) 
+    // TODO: load being. me.Being.SaveSitef(rec)
+    return nil
+}
+
+
+
+
 
 
 

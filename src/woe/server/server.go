@@ -119,7 +119,7 @@ func (me * Server) SetupWorld() (err error) {
     
     if me.World == nil {
         monolog.Info("Creating new default world...")
-        me.World = world.NewWorld("WOE", DEFAULT_MOTD)
+        me.World = world.NewWorld("WOE", DEFAULT_MOTD, me.DataPath())
         err := me.World.Save(me.DataPath())
         if err != nil {
             monolog.Error("Could not save world: %v", err)
