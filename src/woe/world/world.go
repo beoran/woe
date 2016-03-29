@@ -79,11 +79,11 @@ func (me * World) AddZone(zone * Zone) {
 func (me * World) Save(dirname string) (err error) {
     path := SavePathFor(dirname, "world", me.Name)
     
-    rec                := make(sitef.Record)
+    rec                  := sitef.NewRecord()
     rec.Put("name",         me.Name)
     rec.Put("motd",         me.MOTD)
     monolog.Debug("Saving World record: %s %v", path, rec)
-    return sitef.SaveRecord(path, rec)
+    return sitef.SaveRecord(path, *rec)
 }
 
 // Load a world from a sitef file.
@@ -181,4 +181,44 @@ func (me * World) RemoveItem(id string) {
     }    
     delete(me.itemmap, id)
 }
+
+
+// Returns a Room that has already been loaded or nil if not found
+func (me * World) GetRoom(id string) (room * Room) {
+    room, ok := me.roommap[id]
+    if !ok {
+        return nil
+    }
+    return room
+} 
+
+
+
+// Loads a Room to be used with this world. 
+// If the room was already loaded, returns that in stead.
+func (me * World) LoadRoom(id string) (room *Room, err error) {
+    room = me.GetRoom(id)
+    
+    if (room != nil) {
+        return room, nil
+    }
+    
+    room, err = LoadRoom(me.dirname, id);
+    if err != nil {
+        return room, err
+    }
+    me.roommap[room.ID] = room
+    return room, nil
+}
+
+// Removes an item from this world by ID.
+func (me * World) RemoveRoom(id string) {
+    _, have := me.roommap[id]
+    if (!have) {
+        return
+    }    
+    delete(me.roommap, id)
+}
+
+
 

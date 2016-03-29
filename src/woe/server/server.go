@@ -1,7 +1,6 @@
 package server
 
 import (
-    "log"
   //  "io"
     "net"
   //  "errors"
@@ -74,8 +73,6 @@ func init() {
 type Server struct {
     address               string
     listener              net.Listener
-    logger              * log.Logger
-    logfile             * os.File
     clients map[int]    * Client 
     tickers map[string] * Ticker
     alive                 bool
@@ -138,19 +135,22 @@ func NewServer(address string) (server * Server, err error) {
         return nil, err
     }
     
-    logfile, err := os.OpenFile("log.woe", os.O_WRONLY | os.O_APPEND | os.O_CREATE, 0660)
-    if (err != nil) {
-        return nil, err
-    }
+    monolog.Info("Server listening on %s.", address)
     
-    logger := log.New(logfile, "woe", log.Llongfile | log.LstdFlags)
     clients := make(map[int] * Client)
     tickers := make(map[string] * Ticker)
 
-    server = &Server{address, listener, logger, logfile, clients, tickers, true, nil, STATUS_RESTART}
+    server = &Server{address, listener, clients, tickers, true, nil, STATUS_RESTART}
     err = server.SetupWorld()
-    server.AddDefaultTickers()
+    if err != nil {
+        monolog.Error("Could not set up or load world!")
+        return nil, err
+    }
     
+    monolog.Info("Server world set up.")    
+    server.AddDefaultTickers()
+    monolog.Info("Tickers set up.")
+
     return server, err
 }
 
@@ -280,8 +280,7 @@ func (me * Server) Close() {
     }
     
     me.handleDisconnectedClients()
-    monolog.Info("Closing server, closing logfile.")
-    me.logfile.Close();
+    monolog.Info("Closed server.")
 }
 
 func (me * Server) Serve() (status int, err error) { 
@@ -328,11 +327,16 @@ func (me * Server) Broadcast(format string, args ...interface{}) {
 func (me * Server) DataPath() string {
     // 
     cwd, err := os.Getwd();
+    monolog.Debug("Current direcory: %s (%v).", cwd, err)
+    
     if  err != nil {
         cwd = "."
     }
     
-    return filepath.Join(cwd, "data", "var")
+    fp := filepath.Join(cwd, "data", "var")
+    monolog.Debug("Data path: %s (%v). ", fp, err)
+
+    return fp
 }
 
 // Returns the script path of the server

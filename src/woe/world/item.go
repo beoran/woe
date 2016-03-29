@@ -180,7 +180,7 @@ type Item struct {
     Kind          ItemKind
     Damage        DamageKind
     // Equipment location,  "none" if not equippable
-    Equippable    EquipWhere
+    Equip         EquipWhere
     // Level of crafing skill needed to craft this, or of harvesting skill 
     // to harvest this, or of mining skill to mine this. Negative if cannot 
     // be crafted nor harvested, nor mined.    
@@ -193,10 +193,12 @@ type Item struct {
     // ID of item this item can degrade into. empty or "none" if cannot be 
     // degraded.
     Degrade       string
-    // ID of technique/art/item to craft this item teaches when used, empty or 
+    // ID of technique/art/exploit this item teaches when used, empty or 
     // none if it teaches nothing. If it's a skill, the XP of teaching is 
     // determined by the Quality of the item.   
     Teaches       string
+     // ID of skill needed to craft this item   
+    Craft         string
 }
 
 // Load an item from a sitef file.
@@ -216,21 +218,26 @@ func LoadItem(dirname string, id string) (item *Item, err error) {
     record := records[0]
     monolog.Info("Loading Item record: %s %v", path, record)
     
-    item = new(Item)
-    item.Entity.LoadSitef(record)
-    /*
-    account.Name            = record.Get("name")
-    account.Hash            = record.Get("hash")
-    account.Algo            = record.Get("algo")
-    account.Email           = record.Get("email")
-    account.Points          = record.GetIntDefault("points", 0)
-    account.Privilege       = Privilege(record.GetIntDefault("privilege", 
-                                int(PRIVILEGE_NORMAL)))
+    item            = new(Item)
+    item.Entity.LoadSitef(*record)
+    item.Quality    = record.GetIntDefault("quality", 0)
+    item.Price      = record.GetIntDefault("price", -1)
+    item.Level      = record.GetIntDefault("level", -1)
+    item.Kind       = ItemKind(record.Get("kind"))
+    item.Damage     = DamageKind(record.Get("damage"))
+    item.Equip      = EquipWhere(record.Get("equip"))
+    item.Upgrade    = record.Get("upgrade")
+    item.Degrade    = record.Get("degrade")
+    item.Teaches    = record.Get("teaches")
+    item.Craft      = record.Get("craft")
     
-    var nchars int
-    nchars                  = record.GetIntDefault("characters", 0)
-    _ = nchars    
-    */
+    ningredients   := record.GetIntDefault("ingredients", 0)
+    
+    for i := 0; i < ningredients; i++ {
+        ingr := record.GetArrayIndex("ingredients", i)
+        item.Ingredients = append(item.Ingredients, ingr) 
+    }
+    
     monolog.Info("Loaded Item: %s %v", path, item)
     return item, nil
 }

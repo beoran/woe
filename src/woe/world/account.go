@@ -1,8 +1,6 @@
 package world
 
 import "path/filepath"
-import "os"
-import "encoding/xml"
 import "github.com/beoran/woe/sitef"
 import "github.com/beoran/woe/monolog"
 import "fmt"
@@ -58,20 +56,6 @@ func (me * Account) Challenge(challenge string) bool {
     return false
 }
 
-// Helpers for use with sitef records
-func SitefStoreString(rec sitef.Record, key string, val string) {
-    rec[key] = val
-}
-
-func SitefStoreInt(rec sitef.Record, key string, val int) {
-    rec[key] = fmt.Sprintf("%d", val)
-}
-
-
-func SitefStoreArray(rec sitef.Record, key string, val LabeledList) {
-
-}
-
 
 // Add a character to an account.
 func (me * Account) AddCharacter(chara * Character) {
@@ -83,7 +67,7 @@ func (me * Account) AddCharacter(chara * Character) {
 func (me * Account) Save(dirname string) (err error) {
     path := SavePathFor(dirname, "account", me.Name)
     
-    rec                := make(sitef.Record)
+    rec                := sitef.NewRecord()
     rec.Put("name",         me.Name)
     rec.Put("hash",         me.Hash)
     rec.Put("algo",         me.Algo)
@@ -93,11 +77,11 @@ func (me * Account) Save(dirname string) (err error) {
     rec.PutInt("characters",len(me.characters))
     for i, chara   := range me.characters {
         key        := fmt.Sprintf("characters[%d]", i)
-        rec.Put(key, chara.Name)
+        rec.Put(key, chara.ID)
         
     }
     monolog.Debug("Saving Acccount record: %s %v", path, rec)
-    return sitef.SaveRecord(path, rec)
+    return sitef.SaveRecord(path, *rec)
 }
 
 // Load an account from a sitef file.
@@ -126,9 +110,24 @@ func LoadAccount(dirname string, name string) (account *Account, err error) {
     account.Privilege       = Privilege(record.GetIntDefault("privilege", 
                                 int(PRIVILEGE_NORMAL)))
     
-    var nchars int
-    nchars                  = record.GetIntDefault("characters", 0)
-    account.characters      = make([] * Character, nchars)
+    nchars                 := record.GetIntDefault("characters", 0)
+    account.characters      = make([] * Character, 0, nchars)
+    monolog.Info("Try to load %d characters:\n", nchars)
+    for index := 0 ; index < nchars ; index ++ {
+
+        chid := record.GetArrayIndex("characters", index)
+        monolog.Info("Loading character: %d %s\n", index, chid)
+        
+        ch, err := account.LoadCharacter(dirname, chid);
+        if err != nil {
+            monolog.Error("Could not load character %s: %s", chid, err.Error())
+            // return nil, err
+        } else {
+            account.characters = append(account.characters, ch)
+        } 
+    }
+    
+    
     /* Todo: load characters here... */    
     monolog.Info("Loaded Account: %s %v", path, account)
     return account, nil
@@ -139,31 +138,46 @@ func (me * Account) NumCharacters() int {
     return len(me.characters)
 } 
 
-func (me * Account) SaveXML(dirname string) (err error) {
-    path := SavePathForXML(dirname, "account", me.Name)
-    
-    file, err := os.Create(path)
-    if err != nil {
-        return err
-    }
-    enc := xml.NewEncoder(file)
-    enc.Indent(" ", "  ")
-    return enc.Encode(me)
-}
+func (me * Account) GetCharacter(index int) (* Character) {
+    return me.characters[index]
+} 
 
-func LoadAccountXML(dirname string, name string) (account *Account, err error) {
-    path := SavePathForXML(dirname, "account", name)
-    
-    file, err := os.Open(path)
-    if err != nil {
-        return nil, err
+func (me * Account) FindCharacter(character * Character) (index int) {
+    for k, c := range me.characters {
+        if c == character  {
+            return k
+        }
     }
-    dec := xml.NewDecoder(file)    
-    account = new(Account)
-    err = dec.Decode(account)
-    return account, nil
-}
+    return -1;
+} 
 
+// Delete a character from this account.
+func (me * Account) DeleteCharacter(dirname string, character * Character) bool {
+    
+    if i:= me.FindCharacter(character) ; i < 0 {
+        monolog.Warning("Could not find character: %v %d", character, i)
+        return false;  
+    } else {
+        copy(me.characters[i:], me.characters[i+1:])
+        newlen := len(me.characters) - 1 
+        me.characters[newlen] = nil
+        me.characters = me.characters[:newlen]
+    }
+    /// Save self so the deletion is correctly recorded.
+    me.Save(dirname)
+    
+    return character.Delete(dirname)
+} 
+
+
+func (me * Account) CharacterEntitylikeSlice() EntitylikeSlice {
+    els := make(EntitylikeSlice, 0, 16)
+    for i:= 0 ; i < me.NumCharacters(); i++ {
+        chara := me.GetCharacter(i)
+        els = append(els, chara)
+    }
+    return els
+}
 
 
 

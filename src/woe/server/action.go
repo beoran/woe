@@ -2,6 +2,7 @@ package server
 
 import "bytes"
 import "errors"
+import "regexp"
 // import "github.com/beoran/woe/telnet"
 import "github.com/beoran/woe/world"
 import "github.com/beoran/woe/monolog"
@@ -63,10 +64,19 @@ func doQuit(data * ActionData) (err error) {
     return nil
 }
 
+func doEnableLog(data * ActionData) (err error) {  
+    // strings. string(data.Rest)
+    return nil
+}
+
+
 func ParseCommand(command []byte, data * ActionData) (err error) {
     /* strip any leading blanks  */
     trimmed    := bytes.TrimLeft(command, " \t")
-    parts      := bytes.SplitN(trimmed, []byte(" \t,"), 2)  
+    re         := regexp.MustCompile("[^ \t,]+")
+    parts      := re.FindAll(command, -1)
+    
+    bytes.SplitN(trimmed, []byte(" \t,"), 2)  
     
     if len(parts) < 1 {
         data.Command = nil
@@ -75,7 +85,7 @@ func ParseCommand(command []byte, data * ActionData) (err error) {
     data.Command = parts[0]
     if len(parts) > 1 { 
         data.Rest    = parts[1]
-        data.Argv    = bytes.Split(data.Rest, []byte(" \t,"))
+        data.Argv    = parts
     } else {
         data.Rest    = nil
         data.Argv    = nil

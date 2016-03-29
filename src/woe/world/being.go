@@ -37,8 +37,8 @@ type Kin struct {
     Mechanical  float64
     // Level of Corruption
     Corruption  float64
-    // If players can choose this or not
-    Playable    bool
+    // Level of "unliving", i,e, previously alive, matter in the being 
+    Unlife      float64 
 }
 
 
@@ -48,6 +48,23 @@ func NewKin(id string, name string) * Kin {
     res.Name = name
     return res
 }
+
+
+/* Kin modifier display as a string */
+func (me Kin) ToKinModifiers() string {
+    return fmt.Sprintf("ARTS : %4.2f TECHS: %4.2f LEARN: %4.2f\n" + 
+        "MECHA: %4.2f CORRU: %4.2f UNLIF: %4.2f", 
+        me.Arts, me.Techniques, me.Learning, me.Mechanical,
+        me.Corruption, me.Unlife)
+}
+
+/* Help for a kin */
+func (me Kin) AskLong() string {
+    return me.Long + "\n\nTalent modifiers for " + me.Name + 
+    " kin:\n" + me.ToTalents() + "\n\nKin modifiers for " + me.Name + 
+    " kin:\n" + me.ToKinModifiers() + "\n"
+}
+
 
 
 /* Job of a being */
@@ -67,6 +84,12 @@ type Job struct {
     Playable    bool
 }
 
+/* Help for a job */
+func (me Job) AskLong() string {
+    return me.Long + "\n\nTalent modifiers for " + me.Name + 
+    " job:\n" + me.ToTalents() + "\n"
+}
+
 
 /* Gender of a being */
 type Gender struct {
@@ -76,6 +99,13 @@ type Gender struct {
     // Vitals modifiers of the gender
     Vitals
 }
+
+/* Help for a gender */
+func (me Gender) AskLong() string {
+    return me.Long + "\n\nGender modifiers for " + me.Name + 
+    " gender:\n" + me.ToTalents() + "\n"
+}
+
 
 /* Struct, list and map of all genders in WOE. */
 var Genders = struct {
@@ -118,10 +148,24 @@ var Genders = struct {
     
 }
 
+func EntitylikeToGender(me Entitylike) (*Gender) {
+    v, ok := me.(*Gender)
+    if ok {
+        return v
+    } else {
+        return nil
+    }
+}
+
+
 
 type EntitylikeSlice []Entitylike
 
-var GenderList  = EntitylikeSlice{&Genders.Female, &Genders.Male, 
+var GenderList  = []Gender{Genders.Female, Genders.Male, 
+    Genders.Intersex, Genders.Genderless }
+
+
+var GenderEntityList  = EntitylikeSlice{&Genders.Female, &Genders.Male, 
     &Genders.Intersex, &Genders.Genderless }
 
 var GenderMap = map[string]*Gender {
@@ -167,6 +211,22 @@ func (me EntitylikeSlice) FindName(name string) (Entitylike) {
     })
 }
 
+/* Finds the ID  */
+func (me EntitylikeSlice) FindID(id string) (Entitylike) {
+    if id == "" {
+        return nil
+    }
+    
+    return me.Each(func (e Entitylike) (Entitylike) {
+        if strings.ToLower(e.AsEntity().ID) == id {
+            return e
+        } else {
+            return nil
+        }
+    })
+}
+
+
 /* Filters the list by privilege level (only those allowed by the level are retained) */
 func (me EntitylikeSlice) FilterPrivilege(privilege Privilege) (EntitylikeSlice) {
     return me.Filter(func (e Entitylike) (Entitylike) {
@@ -176,15 +236,6 @@ func (me EntitylikeSlice) FilterPrivilege(privilege Privilege) (EntitylikeSlice)
             return nil
         }
     })
-}
-
-func EntitylikeToGender(me Entitylike) (*Gender) {
-    v, ok := me.(*Gender)
-    if ok {
-        return v
-    } else {
-        return nil
-    }
 }
 
 /* All Kins of  WOE */
@@ -201,6 +252,7 @@ They excel at nothing in particular, but are fast learners.`,
         // No stats either because no bonuses there either.
         Arts : 1.0,
         Techniques : 1.0,
+        Learning: 1.5,
     },
     {
         Entity: Entity {
@@ -209,7 +261,7 @@ They excel at nothing in particular, but are fast learners.`,
             Long: 
 `Neosa are descendents of humans genetically modified to be lite, agile 
 and skilled with the Numen Arts. They are less tough and strong, and less adept
-with techniques. They can be recognized by their extremely long and pointy ears.`,
+with techniques. They can be recognized by their long and pointy ears.`,
         },
         
         // AGI+1 EMO+1 STR-1 TOU-1 
@@ -217,6 +269,7 @@ with techniques. They can be recognized by their extremely long and pointy ears.
             Agility : 1, Emotion : 1, },
         Arts        : 1.2,
         Techniques  : 0.8,
+        Learning    : 1.0,
     },
     {
         Entity: Entity {
@@ -233,6 +286,7 @@ Numen Arts than humans. They have a soft fur which covers their whole body.`,
         
         Arts : 0.8,
         Techniques : 1.2,
+        Learning    : 1.0,
     },
     {
         Entity: Entity {
@@ -251,6 +305,7 @@ is not as effective on them, but they can be repaired.`,
         Arts : 0.5,
         Techniques : 1.5,
         Mechanical : 0.5,
+        Learning   : 1.1,
     },
     {
         Entity: Entity {
@@ -259,7 +314,7 @@ is not as effective on them, but they can be repaired.`,
             Long: 
 `Androids are conscious human shaped robots with the imperative to serve humans.  
 Highly effective with Techniques, and can install many Parts, but cannot use 
-any Nummen arts. Since thay are not alive, they technically cannot die.`,
+any Numen arts. Since thay are not alive, they technically cannot die.`,
         },
         // STR+1 1 TOU+1 DEX+1 INT+1 
         Talents : Talents {Strength : +2, Toughness: +2, 
@@ -267,6 +322,7 @@ any Nummen arts. Since thay are not alive, they technically cannot die.`,
         Arts : 0.0,
         Techniques : 2.0,
         Mechanical : 1.0,
+        Learning    : 1.0,
     },
 
     {
@@ -276,7 +332,7 @@ any Nummen arts. Since thay are not alive, they technically cannot die.`,
             Long: 
 `Mavericks are androids in which the imperative to serve humans has 
 been destroyed or disabled.  Highly effective with Techniques, and can install 
-many Parts, but cannot use any Nummen arts. Since thay are not alive, they 
+many Parts, but cannot use any Numen arts. Since thay are not alive, they 
 technically cannot die.  They are feared by Humans and hated by Androids.`,
             Privilege: PRIVILEGE_IMPLEMENTOR,
         },
@@ -286,6 +342,7 @@ technically cannot die.  They are feared by Humans and hated by Androids.`,
         Arts : 0.0,
         Techniques : 2.0,
         Mechanical : 1.0,
+        Learning   : 1.0,
     },
 
     {
@@ -305,6 +362,7 @@ the Earth millennia after.`,
         Arts : 0.0,
         Techniques : 2.0,
         Mechanical: 1.0,
+        Learning   : 1.0,
     },
 
     {
@@ -322,6 +380,7 @@ They might be less though than normal robots, but they move extremely quickly.
         Arts : 0.0,
         Techniques : 2.0,
         Mechanical : 1.0,
+        Learning    : 1.0,
     },
 
     {
@@ -342,6 +401,7 @@ No wonder they are still active after all these years.
         Arts : 0.0,
         Techniques : 2.0,
         Mechanical : 1.0,
+        Learning    : 1.0,
     },
     
 
@@ -359,6 +419,7 @@ and aggressive, to protect themselves and their offspring from Humans.`,
             Agility : +1, Intelligence: -5, },
         Arts : 1.0,
         Techniques : 1.0,
+        Learning    : 1.0,
     },
     
     {
@@ -374,6 +435,7 @@ They might be less resillient, but all the more agile.`,
             Agility : +3, Intelligence: -5, },
         Arts : 1.0,
         Techniques : 1.0,
+        Learning    : 1.0,
     },
 
     {
@@ -390,6 +452,7 @@ Fish dart through the water, attacking with their razor sharp teeth.
             Agility : +2, Intelligence: -5, },
         Arts : 1.0,
         Techniques : 1.0,
+        Learning    : 1.0,
     },
 
     {
@@ -405,6 +468,7 @@ but also purse you on land.`,
             Agility : +1, Dexterity: +1, Intelligence: -5, },
         Arts : 1.0,
         Techniques : 1.0,
+        Learning    : 1.0,
     },
 
     {
@@ -422,6 +486,7 @@ they remain dangerous.
             Agility: -1, Intelligence: -5, },
         Arts : 1.0,
         Techniques : 1.0,
+        Learning    : 1.0,
     },
  
     {
@@ -439,6 +504,7 @@ and as well on the land.`,
                             Intelligence: -5,  },
         Arts : 1.0,
         Techniques : 1.0,
+        Learning    : 1.0,
     },
     
     {
@@ -455,6 +521,7 @@ and as a result, larger creepy crawlers became more successful.
         Talents : Talents {Strength : +2, Toughness: +4,  Intelligence: -5, },
         Arts : 1.0,
         Techniques : 1.0,
+        Learning   : 1.0,
     },
 
     {
@@ -464,10 +531,12 @@ and as a result, larger creepy crawlers became more successful.
             Long: 
 `Whether in the rivers or the deep seas, these soft bodies creatures 
 are often toxic and quite dangerous.`,
+            Privilege: PRIVILEGE_IMPLEMENTOR,
         },
         Talents : Talents {Strength : +2, Dexterity: +2, Intelligence: -5, },
         Arts : 1.0,
         Techniques : 1.0,
+        Learning   : 1.0,
     },
 
     {
@@ -484,6 +553,8 @@ Beware, their attacks might be contageous...`,
             Agility : +1, Intelligence: -3, Wisdom: -5 },
         Arts : 1.0,
         Techniques : 1.0,
+        Corruption: 1.0,
+        Learning  : 1.0,
     },
 
     {
@@ -503,6 +574,9 @@ attacks might be contageous...
             Agility : +1, Intelligence: -1, Wisdom: -7 },
         Arts : 1.0,
         Techniques : 1.0,
+        Learning    : 1.0,
+        Corruption: 1.0,
+        Unlife: 1.0,
     },
 }
 
@@ -822,36 +896,36 @@ var BasicTalent Talents = Talents {
 }
 
 // Derived stats 
-func (me *Being) Force() int {
+func (me *Talents) Force() int {
     return (me.Strength * 2 + me.Wisdom) / 3
 }
     
-func (me *Being) Vitality() int {
+func (me *Talents) Vitality() int {
     return (me.Toughness * 2 + me.Charisma) / 3
 }
 
-func (me *Being) Quickness() int {
+func (me * Talents) Quickness() int {
     return (me.Agility * 2 + me.Intelligence) / 3
 }
 
-func (me * Being) Knack() int {
+func (me * Talents) Knack() int {
     return (me.Dexterity * 2 + me.Emotion) / 3
 }
     
     
-func (me * Being) Understanding() int {
+func (me * Talents) Understanding() int {
     return (me.Intelligence * 2 + me.Toughness) / 3
 }
 
-func (me * Being) Grace() int {
+func (me * Talents) Grace() int {
     return (me.Charisma * 2 + me.Agility) / 3
 }
     
-func (me * Being) Zeal() int {
+func (me * Talents) Zeal() int {
     return (me.Wisdom * 2 + me.Strength) / 3
 }
 
-func (me * Being) Numen() int {
+func (me * Talents) Numen() int {
       return (me.Emotion * 2 + me.Dexterity) / 3
 }
 
@@ -928,32 +1002,78 @@ func (me * Being) ToPrompt() string {
     }
 }
 
+func (me * Being) GenderName() string {
+    if ( me.Gender == nil ) { 
+        return "????" 
+    } 
+    return me.Gender.Name
+}
+
+func (me * Being) KinName() string {
+    if ( me.Kin == nil ) { 
+        return "????" 
+    } 
+    return me.Kin.Name
+}
+
+func (me * Being) JobName() string {
+    if ( me.Job == nil ) { 
+        return "????" 
+    } 
+    return me.Job.Name
+}
+
+
 
 // Generates an overview of the essentials of the being as a string.
 func (me * Being) ToEssentials() string {
-    return fmt.Sprintf("%s lvl %d %s %s %s", me.Name, me.Level, me.Gender.Name, me.Kin.Name, me.Job.Name)
+    return fmt.Sprintf("%s lvl %d %s %s %s", me.Name, me.Level, me.GenderName(), me.KinName(), me.JobName())
 }
 
 // Generates an overview of the physical talents of the being as a string.
-func (me * Being) ToBodyTalents() string {
+func (me * Talents) ToBodyTalents() string {
     return fmt.Sprintf("STR: %3d    TOU: %3d    AGI: %3d    DEX: %3d", me.Strength, me.Toughness, me.Agility, me.Dexterity)
 }
 
 // Generates an overview of the mental talents of the being as a string.
-func (me * Being) ToMindTalents() string {
+func (me * Talents) ToMindTalents() string {
     return fmt.Sprintf("INT: %3d    WIS: %3d    CHA: %3d    EMO: %3d", me.Intelligence, me.Wisdom, me.Charisma, me.Emotion)
 }
 
+// Generates an overview of the physical derived talents of the being as a string.
+func (me * Talents) ToBodyDerived() string {
+    return fmt.Sprintf("FOR: %3d    VIT: %3d    QUI: %3d    KNA: %3d", me.Force(), me.Vitality(), me.Quickness(), me.Knack())
+}
+
+// Generates an overview of the mental derived talents of the being as a string.
+func (me * Talents) ToMindDerived() string {
+    return fmt.Sprintf("UND: %3d    GRA: %3d    ZEA: %3d    NUM: %3d", me.Understanding(), me.Grace(), me.Zeal(), me.Numen())
+}
+
+// Generates an overview of the derived talents of the being as a string.
+func (me * Talents) ToDerived() string {
+    status := me.ToBodyDerived();
+    status += "\n" + me.ToMindDerived();
+    return status
+}
+
+// Generates an overview of all talents as a string.
+func (me * Talents) ToTalents() string {
+    status := me.ToBodyTalents();
+    status += "\n" + me.ToMindTalents();
+    return status
+}
+
 // Generates an overview of the equipment values of the being as a string.
-func (me * Being) ToEquipmentValues() string {
+func (me * EquipmentValues) ToEquipmentValues() string {
     return fmt.Sprintf("OFF: %3d    PRO: %3d    BLO: %3d    RAP: %3d    YIE: %3d", me.Offense, me.Protection, me.Block, me.Rapidity, me.Yield)
 }
 
 // Generates an overview of the status of the being as a string.
 func (me * Being) ToStatus() string {
     status := me.ToEssentials()
-    status += "\n" + me.ToBodyTalents();
-    status += "\n" + me.ToMindTalents();
+    status += "\n" + me.ToTalents();
+    status += "\n" + me.ToDerived();
     status += "\n" + me.ToEquipmentValues();
     status += "\n" + me.ToPrompt();
     status += "\n"
@@ -1027,7 +1147,7 @@ func (me * Being) Init(kind string, name string, privilege Privilege,
     
     me.Kin         = realkin
     me.Gender      = realgen
-    me.Job         = realjob 
+    me.Job         = realjob
        
     me.Talents.GrowFrom(BasicTalent)    
     me.Talents.GrowFrom(me.Kin.Talents)
@@ -1063,31 +1183,39 @@ func LoadBeing(datadir string, nameid string) * Being {
     return res
 }
 
-func (me * Talents) SaveSitef(rec sitef.Record) (err error) {
+func (me * Talents) SaveSitef(rec * sitef.Record) (err error) {
     rec.PutStruct("", *me)
     return nil
 }
 
-func (me * Vitals) SaveSitef(rec sitef.Record) (err error) {
+func (me * Vitals) SaveSitef(rec * sitef.Record) (err error) {
     rec.PutStruct("", *me)
     return nil
 }
 
-func (me * EquipmentValues) SaveSitef(rec sitef.Record) (err error) {
+func (me * EquipmentValues) SaveSitef(rec * sitef.Record) (err error) {
+    rec.PutStruct("", *me)
     return nil
 }
 
-func (me * Aptitudes) SaveSitef(rec sitef.Record) (err error) {
+func (me * Aptitudes) SaveSitef(rec * sitef.Record) (err error) {
+    nskills := len(me.Skills)
+    rec.PutInt("skills", nskills)
+    for i := 0 ; i < nskills; i ++ {
+        rec.PutArrayIndex("skills", i, me.Skills[i].skill.ID)
+    }
+ 
     return nil
 }
 
-func (me * Inventory) SaveSitef(rec sitef.Record) (err error) {
+func (me * Inventory) SaveSitef(rec * sitef.Record) (err error) {
+ 
     return nil
 }
 
 
 // Save a being to a sitef record.
-func (me * Being) SaveSitef(rec sitef.Record) (err error) {
+func (me * Being) SaveSitef(rec * sitef.Record) (err error) {
     me.Entity.SaveSitef(rec)
     rec.PutInt("level", me.Level)
 
@@ -1110,17 +1238,63 @@ func (me * Being) SaveSitef(rec sitef.Record) (err error) {
     me.Inventory.SaveSitef(rec)
 
     if me.Room != nil {
-        rec.Put("kin", me.Room.ID)
+        rec.Put("room", me.Room.ID)
     }
     
     // TODO: saving: me.Being.SaveSitef(rec)
     return nil
 }
 
+func (me * Talents) LoadSitef(rec sitef.Record) (err error) {
+    rec.GetStruct("", me)
+    return nil
+}
+
+func (me * Vitals) LoadSitef(rec sitef.Record) (err error) {
+    rec.GetStruct("", me)
+    return nil
+}
+
+func (me * EquipmentValues) LoadSitef(rec sitef.Record) (err error) {
+    rec.GetStruct("", me)
+    return nil
+}
+
+func (me * Aptitudes) LoadSitef(rec sitef.Record) (err error) {
+//    rec.GetStruct("", *me)
+    return nil
+}
+
+func (me * Inventory) LoadSitef(rec sitef.Record) (err error) {
+//    rec.GetStruct("", *me)
+    return nil
+}
+
+
 // Load a being from a sitef record.
 func (me * Being) LoadSitef(rec sitef.Record) (err error) {
     me.Entity.LoadSitef(rec) 
-    // TODO: load being. me.Being.SaveSitef(rec)
+
+    me.Level   = rec.GetIntDefault("level", 1)
+    
+    me.Gender  = EntitylikeToGender(GenderEntityList.FindID(rec.Get("gender")))
+    me.Job     = EntitylikeToJob(JobEntityList.FindID(rec.Get("job")))
+    me.Kin     = EntitylikeToKin(KinEntityList.FindID(rec.Get("kin")))
+    
+    me.Talents.LoadSitef(rec)
+    me.Vitals.LoadSitef(rec)
+    me.EquipmentValues.LoadSitef(rec)
+    me.Aptitudes.LoadSitef(rec)
+    me.Inventory.LoadSitef(rec)
+    
+    if (rec.Get("room") != "") {
+        var err error
+        me.Room, err = DefaultWorld.LoadRoom(rec.Get("room"))
+        if err != nil {
+            monolog.WriteError(err)
+            return err
+        }
+    }
     return nil
 }
 
