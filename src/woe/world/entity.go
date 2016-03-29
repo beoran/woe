@@ -31,12 +31,17 @@ type Entity struct {
 }
 
 
+func EntityNameToID(kind string, name string) string {
+    return kind + "_" + strings.ToLower(name)
+}
+
+
 func (me * Entity) InitKind(kind string, name string, 
     privilege Privilege) (* Entity) {
     if me == nil {
         return me
     }
-    me.ID       = kind + "_" + strings.ToLower(name) 
+    me.ID       = EntityNameToID(kind, name) 
     me.Name     = name
     me.Short    = name
     me.Long     = name
@@ -236,23 +241,39 @@ func (me * LabeledList) Index(index int) Labeled {
 
 
 // Save an entity to a sitef record.
-func (me * Entity) SaveSitef(rec sitef.Record) (err error) {
-    rec["id"]    = string(me.ID)
-    rec["name"]  = me.Name
-    rec["short"] = me.Short
-    rec["long"]  = me.Long
+func (me * Entity) SaveSitef(rec * sitef.Record) (err error) {
+    rec.Put("id", me.ID)
+    rec.Put("name", me.Name)
+    rec.Put("short", me.Short)
+    rec.Put("long",  me.Long)
     return nil
 }
 
 // Load an entity from a sitef record.
 func (me * Entity) LoadSitef(rec sitef.Record) (err error) {
-    me.ID       = rec["id"]   
-    me.Name     = rec["name"]
-    me.Short    = rec["short"]
-    me.Long     = rec["long"]
+    me.ID       = rec.Get("id")
+    me.Name     = rec.Get("name")
+    me.Short    = rec.Get("short")
+    me.Long     = rec.Get("long")
     return nil
 }
 
+
+func (me Entity) AskName() string {
+    return me.Name
+}
+
+func (me Entity) AskShort() string {
+    return me.Short
+}
+
+func (me Entity) AskLong() string {
+    return me.Long
+}
+
+func (me Entity) AskPrivilege() Privilege {
+    return me.Privilege
+}
 
 
 

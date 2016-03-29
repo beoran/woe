@@ -39,20 +39,36 @@ import "github.com/beoran/woe/monolog"
 // A # at the start optionally after whitespace is a comment
 // 
 
-type Record map[string]string
+type Record struct { 
+        dict map[string]string
+        order []string
+}
+
+func NewRecord() (* Record) {
+    rec := &Record{}
+    rec.dict  = make(map[string]string)
+    rec.order = make([]string, 0)
+    return rec
+}
 
 func (me * Record) Put(key string, val string) {
-    (*me)[key] = val
+    me.order = append(me.order, key)
+    me.dict[key] = val
 }
 
 func (me * Record) Putf(key string, format string, values ...interface{}) {
-    me.Put(key, fmt.Sprintf(format, values...)) 
+    me.Put(key, fmt.Sprintf(format, values...))
+    monolog.Debug("After putf: %s %v", key, me.order)
 }
+
+func (me * Record) PutArrayIndex(key string, index int, value string) {
+    realkey := fmt.Sprintf("%s[%d]", key, index)
+    me.Put(realkey, value)
+} 
 
 func (me * Record) PutArray(key string, values []string) {
     for i, value := range values {
-        realkey := fmt.Sprintf("%s[%d]", key, i)
-        me.Put(realkey, value)
+        me.PutArrayIndex(key, i, value)
     }
 } 
 
@@ -70,15 +86,21 @@ func (me * Record) PutFloat64(key string, val float64) {
 }
 
 func (me Record) MayGet(key string) (result string, ok bool) {
-    result, ok = me[key]
+    result, ok = me.dict[key]
     return result, ok
 }
 
 
 func (me Record) Get(key string) (result string) {
-    result= me[key]
+    result= me.dict[key]
     return result
 }
+
+func (me * Record) GetArrayIndex(key string, i int) (result string) {
+    realkey := fmt.Sprintf("%s[%d]", key, i)
+    return me.Get(realkey)
+}
+
 
 func (me Record) Getf(key string, format string, 
     values ...interface{}) (amount int, ok bool) {
@@ -128,7 +150,16 @@ func (me * Record) convSimple(typ reflect.Type, val reflect.Value) (res string, 
 }
 
 
-func (me Record) PutValue(key string, value reflect.Value) {
+func (me * Record) PutValue(key string, value reflect.Value) {
+
+    monolog.Debug("PutValue: %s %v", key, value)
+
+    stringer, ok := value.Interface().(fmt.Stringer)
+    if ok {
+        me.Put(key, stringer.String())
+        return
+    }
+    
     switch (value.Kind()) {
         case reflect.Int, reflect.Int32, reflect.Int64:
             me.Putf(key, "%d", value.Int())
@@ -138,21 +169,76 @@ func (me Record) PutValue(key string, value reflect.Value) {
             me.Putf(key, "%f", value.Float())
         case reflect.String:
             me.Putf(key, "%s", value.String())
+        case reflect.Struct:
+            me.PutStruct(key + ".", value.Interface());
         default:
             me.Put(key, "???")
     }
+    
+    monolog.Debug("Put: key %s value %s, result %v", key, value, me) 
+    
 }
 
-func (me Record) PutStruct(prefix string, structure interface {}) {
+func (me * Record) PutStruct(prefix string, structure interface {}) {
     st := reflect.TypeOf(structure)
     vt := reflect.ValueOf(structure)
-    monolog.Info("PutStruct: type %v value %v\n", st, vt)
     
     for i:= 0 ; i < st.NumField() ; i++ {
         field := st.Field(i)
         key := strings.ToLower(field.Name)
-        value :=  vt.Field(i).String()
-        me.Put(prefix + key, value)
+        value :=  vt.Field(i)
+        me.PutValue(prefix + key, value)
+    }
+}
+
+
+func (me Record) GetValue(key string, value reflect.Value) (err error){
+    /*stringer, ok := value.Interface().(fmt.Stringer)
+    if ok {
+        me.Gut(key, stringer.String())
+        return
+    }*/
+    monolog.Debug("GetValue: %s %v", key, value)
+    
+    switch (value.Kind()) {
+        case reflect.Int, reflect.Int32, reflect.Int64:
+            value.SetInt(int64(me.GetIntDefault(key, 0)))
+        case reflect.Uint, reflect.Uint32, reflect.Uint64:
+            value.SetUint(uint64(me.GetIntDefault(key, 0)))
+        case reflect.Float32, reflect.Float64:
+            f, err := me.GetFloat(key)
+            if (err != nil) { 
+                return err
+            }
+            value.SetFloat(f)
+        case reflect.String:
+            s, ok := me.MayGet(key)
+            if (!ok) {
+                return fmt.Errorf("Could not get string for key %s", key)
+            }
+            value.SetString(s)
+        case reflect.Struct:
+            me.GetStruct(key + ".", value.Addr().Interface());
+        default:
+            monolog.Warning("Don't know what to do with %v", value)
+    }
+    return nil
+}
+
+
+func (me Record) GetStruct(prefix string, structure interface {}) {
+    monolog.Info("GetStruct: structure %v, %v\n", structure, 
+        reflect.TypeOf(structure))
+    
+    st := reflect.TypeOf(structure).Elem()
+    vt := reflect.Indirect(reflect.ValueOf(structure))
+    monolog.Info("GetStruct: type %v value %v\n", st, vt)
+    
+    for i:= 0 ; i < st.NumField() ; i++ {
+        field := st.Field(i)
+        key := prefix + strings.ToLower(field.Name)
+        value :=  reflect.Indirect(vt).Field(i)
+        me.GetValue(key, value)
     }
 }
 
@@ -179,12 +265,12 @@ const (
     PARSER_STATE_VALUE
 )
 
-type RecordList []Record
+type RecordList []*Record
 
 
 func ParseReader(read io.Reader) (RecordList, error) {
     var records     RecordList
-    var record      Record = make(Record)
+    record      := NewRecord()
     var err         Error
     lineno      := 0
     scanner     := bufio.NewScanner(read)
@@ -197,13 +283,17 @@ func ParseReader(read io.Reader) (RecordList, error) {
         line := scanner.Text()
         // End of record?
         if (len(line) < 1) || line[0] == '-' {
+            // Append last record if needed. 
+            if len(key.String()) > 0 {
+                record.Put(key.String(), value.String())
+            }
             // save the record and make a new one
-            records = append(records, record) 
-            record  = make(Record)
-            // comment?
+            records = append(records, record)
+            record  = NewRecord()
+        // comment?
         } else if line[0] == '#' {
             continue; 
-            // continue value?
+        // continue value?
         } else if line[0] == '\t' || line[0] == ' '|| line[0] == '+' {
             
             /* Add a newline unless + is used */
@@ -213,11 +303,11 @@ func ParseReader(read io.Reader) (RecordList, error) {
             
             // continue the value, skipping the first character
             value.WriteString(line[1:])            
-            // new key
+        // new key
         } else if strings.ContainsRune(line, ':') {
             // save the previous key/value pair if needed
             if len(key.String()) > 0 {
-                record[key.String()] = value.String()
+                record.Put(key.String(), value.String())
             }
             
             key.Reset()
@@ -237,10 +327,10 @@ func ParseReader(read io.Reader) (RecordList, error) {
     
     // Append last record if needed. 
     if len(key.String()) > 0 {
-        record[key.String()] = value.String()
+        record.Put(key.String(), value.String())
     }
     
-    if (len(record) > 0) {
+    if (len(record.order) > 0) {
         records = append(records, record)
     }
 
@@ -248,7 +338,8 @@ func ParseReader(read io.Reader) (RecordList, error) {
 
     if serr := scanner.Err(); serr != nil {
        err.lineno = lineno
-       err.error  = serr.Error() 
+       err.error  = serr.Error()
+       monolog.Error("Sitef parse error: %d %s", lineno, serr.Error) 
        return records, err
     }
     
@@ -266,6 +357,7 @@ func ParseFilename(filename string) (RecordList, error) {
 }
 
 func WriteField(writer io.Writer, key string, value string) {
+    monolog.Debug("WriteField %s:%s", key, value)
     replacer := strings.NewReplacer("\n", "\n\t")    
     writer.Write([]byte(key))
     writer.Write([]byte{':'})    
@@ -274,7 +366,11 @@ func WriteField(writer io.Writer, key string, value string) {
 }
 
 func WriteRecord(writer io.Writer, record Record) {
-    for key, value := range record {
+    monolog.Debug("WriteRecord %v", record)
+
+    for index := 0 ; index < len(record.order) ; index++ {
+        key := record.order[index];
+        value := record.dict[key];
         WriteField(writer, key, value);
     }
     writer.Write([]byte{'-', '-', '-', '-', '\n'})
@@ -282,7 +378,7 @@ func WriteRecord(writer io.Writer, record Record) {
 
 func WriteRecordList(writer io.Writer, records RecordList) {
     for _, record := range records {
-        WriteRecord(writer, record);
+        WriteRecord(writer, *record);
     }
 }
 
@@ -290,6 +386,7 @@ func WriteRecordList(writer io.Writer, records RecordList) {
 func SaveRecord(filename string, record Record) (error) {
     file, err := os.Create(filename)
     if err != nil {
+        monolog.WriteError(err)
         return err
     }
     defer file.Close()

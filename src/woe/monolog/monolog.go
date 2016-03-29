@@ -8,12 +8,28 @@ import (
     "time"
     "runtime"
     "path/filepath"
+    "unicode"
+    "strings"
 )
 
   
 type Logger interface {
     Log(level string, file string, line int, format string, args...interface{})
     Close()
+}
+
+
+func GetCallerName(depth int) {
+    pc := make([]uintptr, depth+1)
+    runtime.Callers(depth, pc)
+    for i, v := range pc {
+        fun := runtime.FuncForPC(v)
+        if fun != nil { 
+            fmt.Printf("GetCallerName %d %s\n", i, fun.Name()) 
+        } else {
+              fmt.Printf("GetCallerName %d nil\n", i) 
+        }
+    }
 }
 
 
@@ -52,7 +68,7 @@ func (me * FileLogger) Debug(format string, args ... interface{}) {
     me.WriteLog(2, "DEBUG", format, args...)
 }
 
-  
+ 
 type FileLogger struct {
     filename      string
     file        * os.File
@@ -97,34 +113,58 @@ func NewStdoutLogger() (logger Logger, err error) {
     return &FileLogger{"/dev/stderr", os.Stdout}, nil
 }
 
-type Log struct {
+type Logbook struct {
     loggers          [] Logger
     levels  map[string] bool
 }
 
 
-func NewLog() * Log {
+func NewLog() * Logbook {
     loggers :=  make([] Logger, 32)
     levels  :=  make(map[string] bool)
-    return &Log{loggers, levels}
+    return &Logbook{loggers, levels}
 }
 
-func (me * Log) AddLogger(logger Logger) {
+func (me * Logbook) AddLogger(logger Logger) {
     me.loggers = append(me.loggers, logger)
 }
 
-func (me * Log) EnableLevel(level string) {
+func (me * Logbook) EnableLevel(level string) {
     me.levels[level] = true
 }
 
-func (me * Log) DisableLevel(level string) {
+func (me * Logbook) DisableLevel(level string) {
     me.levels[level] = false
 }
 
-func (me * Log) LogVa(name string, file string, line int, format string, args...interface{}) {
-    _, ok := me.levels[name]
+func enableDisableSplitter(c rune) (bool) {
+        ok :=  (!unicode.IsLetter(c))
+        ok = ok && (!unicode.IsNumber(c))
+        ok = ok && (c != '_')
+        return ok
+}
+
+
+func (me * Logbook) EnableLevels(list string) {    
+    to_enable := strings.FieldsFunc(list, enableDisableSplitter)
+    for _, level := range to_enable {
+        me.EnableLevel(level)
+    }
+}
+
     
-    if !ok {
+func (me * Logbook) DisableLevels(list string) {    
+    to_disable := strings.FieldsFunc(list, enableDisableSplitter)
+    for _, level := range to_disable {
+        me.DisableLevel(level)
+    }
+}
+
+
+func (me * Logbook) LogVa(name string, file string, line int, format string, args...interface{}) {
+    enabled, ok := me.levels[name]
+    
+    if (!ok) || (!enabled) {
         return
     }
     
@@ -135,7 +175,7 @@ func (me * Log) LogVa(name string, file string, line int, format string, args...
     }
 }
 
-func (me * Log) Close() {    
+func (me * Logbook) Close() {    
     for index , logger := range me.loggers {
         if logger != nil {
             logger.Close()
@@ -144,7 +184,7 @@ func (me * Log) Close() {
     }
 }
 
-var DefaultLog * Log
+var DefaultLog * Logbook
 
 func init() {
     DefaultLog = NewLog()
@@ -158,6 +198,15 @@ func EnableLevel(level string) {
 func DisableLevel(level string) {
     DefaultLog.DisableLevel(level)
 }
+
+func EnableLevels(list string) {    
+  DefaultLog.EnableLevels(list)
+}
+
+func DisableLevels(list string) {    
+  DefaultLog.DisableLevels(list)
+}
+
 
 func AddLogger(logger Logger, err error) {
     if err == nil {
@@ -199,7 +248,7 @@ func WriteLog(depth int, name string, format string, args ... interface{}) {
     DefaultLog.LogVa(name, file, line, format, args...)
 }
 
-func NamedLog(name string, format string, args ...interface{}) {
+func Log(name string, format string, args ...interface{}) {
     WriteLog(2, name, format, args)
 }
 
@@ -223,5 +272,11 @@ func Debug(format string, args ...interface{}) {
     WriteLog(2, "DEBUG", format, args...)
 }
 
+func エラ(err error) {
+    WriteLog(2, "ERROR", "%s", err.Error())
+}
 
+func WriteError(err error) {
+    WriteLog(2, "ERROR", "%s", err.Error())
+}
 

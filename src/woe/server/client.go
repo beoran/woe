@@ -40,7 +40,11 @@ type Client struct {
     timechan chan time.Time 
     telnet * telnet.Telnet
     info     ClientInfo
+    
+    // Account of client or nil if not yet selected.
     account* world.Account
+    // Character client is plaing with or nil if not yet selected.
+    character * world.Character 
 }
 
 
@@ -50,7 +54,7 @@ func NewClient(server * Server, id int, conn net.Conn) * Client {
     timechan := make (chan time.Time, 32)
     telnet   := telnet.New()
     info     := ClientInfo{w : -1, h : -1, terminal: "none"}
-    return &Client{server, id, conn, true, -1, datachan, errchan, timechan, telnet, info, nil}
+    return &Client{server, id, conn, true, -1, datachan, errchan, timechan, telnet, info, nil, nil}
 }
 
 func (me * Client) Close() {
@@ -78,13 +82,13 @@ func (me * Client) ServeRead() {
 }
 
 /* Goroutine that sends any data that must be sent through the Telnet protocol 
- * (that any data, really) other to the connected client.
+ * to the connected client.
  */
  func (me * Client) ServeWrite() {
      for (me.alive) {
         select {
             case data := <- me.telnet.ToClient:
-            monolog.Debug("Will send to client: %v", data)
+            monolog.Log("SERVEWRITE","Will send to client: %v", data)
             me.conn.Write(data)
         }
     }
@@ -132,9 +136,10 @@ func (me * Client) TryRead(millis int) (data []byte, timeout bool, close bool) {
         }
         switch event := event.(type) {
             case * telnet.DataEvent:
-                monolog.Debug("Telnet data event %T : %d.", event, len(event.Data))
+                monolog.Log("TELNETDATAEVENT", "Telnet data event %T : %d.", event, len(event.Data))
                 return event.Data, false, false
             case * telnet.NAWSEvent:
+                monolog.Log("TELNETNAWSEVENT", "Telnet NAWS event %T.", event)
                 me.HandleNAWSEvent(event);
             default:
                 monolog.Info("Ignoring telnet event %T : %v for now.", event, event)

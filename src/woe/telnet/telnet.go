@@ -206,6 +206,7 @@ func New() (telnet * Telnet) {
 
 // Starts compresssion
 func (me * Telnet) StartCompression() {
+    // XXX implement compression.
     // var zwbuf  bytes.Buffer
     // me.zwriter = zlib.NewWriter(&zwbuf);
 }
@@ -476,7 +477,7 @@ func (me * Telnet) maybeSendDataEventAndEmptyBuffer() {
 
 // Append a byte to the data buffer
 func (me * Telnet) appendByte(bin byte) {
-    monolog.Debug("Appending to telnet buffer: %d %d", len(me.buffer), cap(me.buffer))
+    monolog.Log("TELNET", "Appending to telnet buffer: %d %d", len(me.buffer), cap(me.buffer))
     me.buffer = append(me.buffer, bin)
 }
 
@@ -580,7 +581,7 @@ func (me * Telnet) sbdataiacStateProcessByte(bin byte) bool {
 
 // Process a single byte received from the client 
 func (me * Telnet) ProcessByte(bin byte) bool {
-    monolog.Debug("ProcessByte %d %d", bin, me.state)
+    monolog.Log("TELNET", "ProcessByte %d %d", bin, me.state)
     switch me.state {
     // regular data
         case data_state:
