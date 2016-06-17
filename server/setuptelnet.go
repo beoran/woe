@@ -221,45 +221,4 @@ func (me * Client) SetupTelnet() {
 }
 
 
-/*  
-  # Switches to "password" mode.
-  def password_mode
-    # The server sends "IAC WILL ECHO", meaning "I, the server, will do any 
-    # echoing from now on." The client should acknowledge this with an IAC DO 
-    # ECHO, and then stop putting echoed text in the input buffer. 
-    # It should also do whatever is appropriate for password entry to the input 
-    # box thing - for example, it might * it out. Text entered in server-echoes 
-    # mode should also not be placed any command history.
-    # don't use the Q state machne for echos
-    @telnet.telnet_send_bytes(TELNET_IAC, TELNET_WILL, TELNET_TELOPT_ECHO)
-    tev = wait_for_input(0.1)
-    return tev if tev && tev.type != :do
-    return nil
-  end
 
-  # Switches to "normal, or non-password mode.
-  def normal_mode
-    # When the server wants the client to start local echoing again, it sends 
-    # "IAC WONT ECHO" - the client must respond to this with "IAC DONT ECHO".
-    # Again don't use Q state machine.   
-    @telnet.telnet_send_bytes(TELNET_IAC, TELNET_WONT, TELNET_TELOPT_ECHO)
-    tev = wait_for_input(0.1)
-    return tev if tev && tev.type != :dont
-    return nil
-  end
-  
-  end
-
-  
-  def handle_command
-    order = wait_for_command
-    case order
-    when "/quit"
-      write("Byebye!\r\n")
-      @busy = false
-    else
-      @server.broadcast("#{@account.id} said #{order}\r\n")
-    end
-  end
-   
-*/

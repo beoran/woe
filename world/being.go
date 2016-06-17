@@ -1241,7 +1241,6 @@ func (me * Being) SaveSitef(rec * sitef.Record) (err error) {
         rec.Put("room", me.Room.ID)
     }
     
-    // TODO: saving: me.Being.SaveSitef(rec)
     return nil
 }
 

@@ -43,16 +43,26 @@ func SavePathFor(dirname string, typename string, name string) string {
 
 
 
-func NewAccount(name string, pass string, email string, points int) (*Account) {
-    return &Account{name, pass, "plain", email, points, PRIVILEGE_NORMAL, nil, nil}
+func NewAccount(name string, pass string, email string, points int) (*Account) {    
+    hash := WoeCryptPassword(pass, "")
+    return &Account{name, hash, "woe", email, points, PRIVILEGE_NORMAL, nil, nil}    
+    // return &Account{name, pass, "plain", email, points, PRIVILEGE_NORMAL, nil, nil}
+}
+
+// Export an account to a "universal" map
+func (me * Account) ToUniMap() map[string] interface{} {
+    res := make(map[string] interface{})
+    return res
 }
 
 // Password Challenge for an account.
 func (me * Account) Challenge(challenge string) bool {
     if me.Algo == "plain" {
         return me.Hash == challenge
+    } else if me.Algo == "woe" {
+        return WoeCryptChallenge(me.Hash, challenge)
     }
-    // XXX implement encryption later
+    // implement beter passwd encryption later
     return false
 }
 
