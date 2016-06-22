@@ -24,6 +24,8 @@ type ClientInfo struct {
 	msdp      bool
 	mxp       bool
 	ttype     bool
+	binary    bool
+	sga       bool
 	terminals []string
 	terminal  string
 }
@@ -71,13 +73,16 @@ func (me *Client) Close() {
 /** Goroutine that does the actual reading of input data, and sends it to the
  * needed channels. */
 func (me *Client) ServeRead() {
+	buffer := make([]byte, 1024, 1024)
+
 	for me.alive {
-		buffer := make([]byte, 1024, 1024)
 		read, err := me.conn.Read(buffer)
 		if err != nil {
+			monolog.Log("SERVEREAD", "Error during reading data from client: %v", err)
 			me.errchan <- err
 			return
 		}
+		monolog.Log("SERVEREAD", "Read data from client: %v", buffer[:read], read)
 		// reply will be stored in me.telnet.Events channel
 		me.telnet.ProcessBytes(buffer[:read])
 	}
@@ -127,12 +132,12 @@ func (me *Client) HandleNAWSEvent(nawsevent *telnet.NAWSEvent) {
 	me.info.naws = true
 }
 
-func (me *Client) TryRead(millis int) (data []byte, timeout bool, close bool) {
+func (me *Client) TryRead(millis int) (data []byte, timeout bool, done bool) {
 
 	for me.alive {
-		event, timeout, close := me.TryReadEvent(millis)
-		if event == nil && (timeout || close) {
-			return nil, timeout, close
+		event, timeout, done := me.TryReadEvent(millis)
+		if event == nil && (timeout || done) {
+			return nil, timeout, done
 		}
 		switch event := event.(type) {
 		case *telnet.DataEvent:
