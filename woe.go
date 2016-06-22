@@ -24,7 +24,7 @@ var disable_logs = flag.String("dl", "", "Log levels to disable")
 
 func enableDisableLogs() {
 	monolog.EnableLevels(*enable_logs)
-	monolog.EnableLevels(*disable_logs)
+	monolog.DisableLevels(*disable_logs)
 }
 
 /* Need to restart the server or not? */
