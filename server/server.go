@@ -8,6 +8,7 @@ import (
 	"math/rand"
 	"os"
 	"path/filepath"
+	"runtime"
 	"time"
 
 	"github.com/beoran/woe/monolog"
@@ -287,6 +288,7 @@ func (me *Server) Serve() (status int, err error) {
 		} else {
 			go me.onConnect(conn)
 		}
+		runtime.Gosched()
 	}
 	return me.exitstatus, nil
 }
