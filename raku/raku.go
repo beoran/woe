@@ -39,10 +39,10 @@ import (
 	"io"
 	"reflect"
 	"runtime"
-	"sort"
 	"strings"
 	"unicode"
 
+	"github.com/beoran/woe/graphviz"
 	"github.com/beoran/woe/monolog"
 	"github.com/beoran/woe/tree"
 )
@@ -57,10 +57,10 @@ type Position struct {
 }
 
 const (
-	TokenEOS          TokenType = TokenType('.')
+	TokenPeriod       TokenType = TokenType('.')
 	TokenComma        TokenType = TokenType(',')
-	TokenSemicolumn   TokenType = TokenType(';')
-	TokenColumn       TokenType = TokenType(':')
+	TokenSemicolon    TokenType = TokenType(';')
+	TokenColon        TokenType = TokenType(':')
 	TokenOpenParen    TokenType = TokenType('(')
 	TokenCloseParen   TokenType = TokenType(')')
 	TokenOpenBrace    TokenType = TokenType('{')
@@ -68,16 +68,23 @@ const (
 	TokenOpenBracket  TokenType = TokenType('[')
 	TokenCloseBracket TokenType = TokenType(']')
 
-	TokenNone     TokenType = 0
-	TokenError    TokenType = -1
-	TokenWord     TokenType = -2
-	TokenEOL      TokenType = -3
-	TokenEOF      TokenType = -4
-	TokenNumber   TokenType = -5
-	TokenOperator TokenType = -6
-	TokenString   TokenType = -7
-	TokenKeyword  TokenType = -8
-	TokenLast     TokenType = -9
+	TokenNone         TokenType = 0
+	TokenError        TokenType = -1
+	TokenWord         TokenType = -2
+	TokenEOL          TokenType = -3
+	TokenEOF          TokenType = -4
+	TokenNumber       TokenType = -5
+	TokenOperator     TokenType = -6
+	TokenString       TokenType = -7
+	TokenSymbol       TokenType = -8
+	TokenFirstKeyword TokenType = -9
+	TokenKeywordA     TokenType = -10
+	TokenKeywordDo    TokenType = -11
+	TokenKeywordEnd   TokenType = -12
+	TokenKeywordThe   TokenType = -13
+	TokenKeywordTo    TokenType = -14
+	TokenLastKeyword  TokenType = -15
+	TokenLast         TokenType = -15
 )
 
 type Token struct {
@@ -86,30 +93,57 @@ type Token struct {
 	Position
 }
 
-var tokenTypeNames []string = []string{
-	"TokenNone", "TokenError", "TokenWord", "TokenEOL", "TokenEOF", "TokenNumber", "TokenOperator", "TokenString", "TokenKeyword",
+var tokenTypeMap map[TokenType]string = map[TokenType]string{
+	TokenNone:       "TokenNone",
+	TokenError:      "TokenError",
+	TokenWord:       "TokenWord",
+	TokenEOL:        "TokenEOL",
+	TokenEOF:        "TokenEOF",
+	TokenNumber:     "TokenNumber",
+	TokenOperator:   "TokenOperator",
+	TokenString:     "TokenString",
+	TokenSymbol:     "TokenSymbol",
+	TokenKeywordA:   "TokenKeywordA",
+	TokenKeywordDo:  "TokenKeywordDo",
+	TokenKeywordEnd: "TokenKeywordEnd",
+	TokenKeywordThe: "TokenKeywordThe",
+	TokenKeywordTo:  "TokenKeywordTo",
 }
 
-var keywordList []string = []string{
-	"a", "do", "end", "the", "to",
+var keywordMap map[string]TokenType = map[string]TokenType{
+	"a":   TokenKeywordA,
+	"do":  TokenKeywordDo,
+	"end": TokenKeywordEnd,
+	"the": TokenKeywordThe,
+	"to":  TokenKeywordTo,
+}
+
+var sigilMap map[string]TokenType = map[string]TokenType{
+	"[": TokenOpenBracket,
+	"{": TokenOpenBrace,
+	"(": TokenOpenParen,
+	"]": TokenCloseBracket,
+	"}": TokenCloseBrace,
+	")": TokenCloseParen,
 }
 
 func (me TokenType) String() string {
-	if int(me) > 0 {
-		return fmt.Sprintf("Token %c", rune(me))
-	} else if me > TokenLast {
-		return tokenTypeNames[-int(me)]
+	name, found := tokenTypeMap[me]
+	if found {
+		return name
 	} else {
+		if (me > 0) && (me < 256) {
+			return fmt.Sprintf("TokenChar<%c>", byte(me))
+		}
 		return fmt.Sprintf("Unknown Token %d", int(me))
 	}
-
 }
 
 func (me Token) String() string {
 	return fmt.Sprintf("Token: %s >%s< %d %d %d.", me.TokenType, string(me.Value), me.Index, me.Row, me.Column)
 }
 
-type TokenChannel chan Token
+type TokenChannel chan *Token
 
 type Lexer struct {
 	Reader  io.Reader
@@ -125,7 +159,7 @@ type Lexer struct {
 type LexerRule func(lexer *Lexer) LexerRule
 
 func (me *Lexer) Emit(t TokenType, v Value) {
-	tok := Token{t, v, me.Current}
+	tok := &Token{t, v, me.Current}
 	me.Output <- tok
 }
 
@@ -151,21 +185,36 @@ func (me *Lexer) SkipComment() bool {
 	return true
 }
 
-func IsKeyword(word string) bool {
-	i := sort.SearchStrings(keywordList, word)
-	if i >= len(keywordList) {
-		return false
-	}
-	return word == keywordList[i]
+/* Returns whether or not a keyword was found, and if so, the TokenType
+of the keyword.*/
+func LookupKeyword(word string) (bool, TokenType) {
+	kind, found := keywordMap[word]
+	return found, kind
+}
+
+/* Returns whether or not a special operator or sigil was found, and if so,
+returns the TokenTyp of the sigil.*/
+func LookupSigil(sigil string) (bool, TokenType) {
+	fmt.Printf("LookupSigil: %s\n", sigil)
+	kind, found := sigilMap[sigil]
+	return found, kind
 }
 
 func LexWord(me *Lexer) LexerRule {
 	me.SkipNotIn(" \t\r\n'")
-	if IsKeyword(me.CurrentStringValue()) {
-		me.Found(TokenKeyword)
+
+	iskw, kind := LookupKeyword(me.CurrentStringValue())
+	if iskw {
+		me.Found(kind)
 	} else {
 		me.Found(TokenWord)
 	}
+	return LexNormal
+}
+
+func LexSymbol(me *Lexer) LexerRule {
+	me.SkipNotIn(" \t\r\n'")
+	me.Found(TokenSymbol)
 	return LexNormal
 }
 
@@ -203,7 +252,12 @@ func LexEOL(me *Lexer) LexerRule {
 
 func LexOperator(me *Lexer) LexerRule {
 	me.SkipNotIn(" \t\r\n")
-	me.Found(TokenOperator)
+	issig, kind := LookupSigil(me.CurrentStringValue())
+	if issig {
+		me.Found(kind)
+	} else {
+		me.Found(TokenOperator)
+	}
 	return LexNormal
 }
 
@@ -250,6 +304,8 @@ func LexNormal(me *Lexer) LexerRule {
 		return LexWhitespace
 	} else if strings.ContainsRune(".,;:", peek) {
 		return LexPunctuator
+	} else if strings.ContainsRune("$", peek) {
+		return LexSymbol
 	} else if strings.ContainsRune("\r\n", peek) {
 		return LexEOL
 	} else if strings.ContainsRune("+-", peek) {
@@ -287,7 +343,6 @@ func (me *Lexer) ReadReaderOnce() (bool, error) {
 	}
 
 	if err == io.EOF {
-		me.Emit(TokenEOF, "")
 		return true, nil
 	} else if err != nil {
 		me.Error("Error reading from reader: %s", err)
@@ -328,7 +383,7 @@ func (me *Lexer) Next() rune {
 	}
 	me.Current.Index++
 	if me.Current.Index >= len(me.runes) {
-		me.Emit(TokenEOF, "")
+		//me.Emit(TokenEOF, "")
 	}
 	return me.Peek()
 }
@@ -439,7 +494,8 @@ const (
 	AstTypeExpression
 	AstTypeWordExpression
 	AstTypeWordCallop
-	AstTypeWordOperation
+	AstTypeOperation
+	AstTypeOperations
 	AstTypeWordCall
 	AstTypeValueExpression
 	AstTypeValueCallop
@@ -448,14 +504,52 @@ const (
 	AstTypeParameters
 	AstTypeParameter
 	AstTypeBlock
-	AstTypeWordvalue
+	AstTypeWordValue
+	AstTypeWord
 	AstTypeValue
 	AstTypeEox
+	AstTypeOperator
 	AstTypeError
 )
 
+var astTypeMap map[AstType]string = map[AstType]string{
+	AstTypeProgram:            "AstTypeProgram",
+	AstTypeStatements:         "AstTypeStatements",
+	AstTypeStatement:          "AstTypeStatement:",
+	AstTypeDefinition:         "AstTypeDefinition",
+	AstTypeWords:              "AstTypeWords",
+	AstTypeExpression:         "AstTypeExpression",
+	AstTypeWordExpression:     "AstTypeWordExpression",
+	AstTypeWordCallop:         "AstTypeWordCallop",
+	AstTypeOperation:          "AstTypeOperation",
+	AstTypeOperations:         "AstTypeOperations",
+	AstTypeWordCall:           "AstTypeWordCall",
+	AstTypeValueExpression:    "AstTypeValueExpression",
+	AstTypeValueCallop:        "AstTypeValueCallop",
+	AstTypeValueCall:          "AstTypeValueCall",
+	AstTypeParametersNonempty: "AstTypeParametersNonempty",
+	AstTypeParameters:         "AstTypeParameters",
+	AstTypeParameter:          "AstTypeParameter",
+	AstTypeBlock:              "AstTypeBlock",
+	AstTypeWordValue:          "AstTypeWordValue",
+	AstTypeWord:               "AstTypeWord",
+	AstTypeValue:              "AstTypeValue",
+	AstTypeEox:                "AstTypeEox",
+	AstTypeOperator:           "AstTypeOperator",
+	AstTypeError:              "AstTypeError",
+}
+
+func (me AstType) String() string {
+	name, found := astTypeMap[me]
+	if found {
+		return name
+	} else {
+		return fmt.Sprintf("Unknown AstType %d", int(me))
+	}
+}
+
 type Ast struct {
-	*tree.Node
+	tree.Node
 	AstType
 	*Token
 }
@@ -464,56 +558,419 @@ func (me *Ast) NewChild(kind AstType, token *Token) *Ast {
 	child := &Ast{}
 	child.AstType = kind
 	child.Token = token
-	child.Node = me.Node.NewChild(child)
+	tree.AppendChild(me, child)
 	return child
 }
 
 func (me *Ast) Walk(walker func(ast *Ast) *Ast) *Ast {
-	node_res := me.Node.Walk(
-		func(node *tree.Node) *tree.Node {
-			ast_res := walker(node.Data.(*Ast))
+	node_res := tree.Walk(me,
+		func(node tree.Noder) tree.Noder {
+			ast_res := walker(node.(*Ast))
 			if ast_res == nil {
 				return nil
 			} else {
-				return ast_res.Node
+				return ast_res
 			}
 		})
-	return node_res.Data.(*Ast)
+	if node_res != nil {
+		return node_res.(*Ast)
+	} else {
+		return nil
+	}
+}
+
+func (me *Ast) Remove() {
+	_ = tree.Remove(me)
 }
 
 func NewAst(kind AstType) *Ast {
 	ast := &Ast{}
-	ast.Node = tree.New(nil, ast)
 	ast.AstType = kind
 	ast.Token = nil
 	return ast
 }
 
+type ParseAction func(parser *Parser) bool
+
+type RuleType int
+
+const (
+	RuleTypeNone = RuleType(iota)
+	RuleTypeAlternate
+	RuleTypeSequence
+)
+
+type Rule struct {
+	tree.Node
+	Name string
+	RuleType
+	ParseAction
+}
+
+func NewRule(name string, ruty RuleType) *Rule {
+	res := &Rule{}
+	res.RuleType = ruty
+	res.Name = name
+	return res
+}
+
+func (me *Rule) NewChild(action ParseAction) *Rule {
+	child := NewRule("foo", RuleTypeNone)
+	tree.AppendChild(me, child)
+	return child
+}
+
+func (me *Rule) Walk(walker func(rule *Rule) *Rule) *Rule {
+	node_res := tree.Walk(me,
+		func(node tree.Noder) tree.Noder {
+			rule_res := walker(node.(*Rule))
+			if rule_res == nil {
+				return nil
+			} else {
+				return rule_res
+			}
+		})
+	return node_res.(*Rule)
+}
+
 type Parser struct {
 	*Ast
 	*Lexer
+	now       *Ast
+	lookahead *Token
 }
 
-func (me *Parser) ParseDefinition() {
-	/*
-		ParseWords()
-		ParseBlock()
-	*/
+func (me *Parser) SetupRules() {
+
 }
 
-func (me *Parser) ParseProgram() {
-	me.Ast = NewAst(AstTypeProgram)
-	token := <-me.Lexer.Output
-	switch token.TokenType {
-	case TokenKeyword:
-		if token.Value == "to" {
-			me.ParseDefinition()
-			return
+func (me *Parser) Expect(types ...TokenType) bool {
+	fmt.Print("Expecting: ", types, " from ", me.now.AstType, " have ", me.LookaheadType(), " \n")
+	for _, t := range types {
+		if me.LookaheadType() == t {
+			fmt.Print("Found: ", t, "\n")
+			return true
 		}
-		fallthrough
-	default:
-		me.Ast.NewChild(AstTypeError, &token)
 	}
+	fmt.Print("Not found.\n")
+	return false
+}
+
+type Parsable interface {
+	isParsable()
+}
+
+func (me TokenType) isParsable() {
+}
+
+func (me ParseAction) isParsable() {
+}
+
+/* Advance the lexer but only of there is no lookahead token already available in me.lookahead.
+ */
+func (me *Parser) Advance() *Token {
+	if me.lookahead == nil {
+		me.lookahead = <-me.Lexer.Output
+	}
+	return me.lookahead
+}
+
+func (me *Parser) DropLookahead() {
+	me.lookahead = nil
+}
+
+func (me *Parser) Lookahead() *Token {
+	return me.lookahead
+}
+
+func (me *Parser) LookaheadType() TokenType {
+	if me.lookahead == nil {
+		return TokenError
+	}
+	return me.Lookahead().TokenType
+}
+
+func (me *Parser) Consume(atyp AstType, types ...TokenType) bool {
+	me.Advance()
+	res := me.Expect(types...)
+	if res {
+		me.NewAstChild(atyp)
+		me.DropLookahead()
+	}
+	return res
+}
+
+/*
+func (me * Parser) OneOf(restype AstType, options ...Parsable) bool {
+	res := false
+	k, v := range options {
+		switch option := v.Type {
+			case TokenType: res := Consume(restype, option)
+			case ParseAction: res := option(me)
+		}
+	}
+	return res
+}
+*/
+
+func (me *Parser) ParseEOX() bool {
+	return me.Consume(AstTypeEox, TokenEOL, TokenPeriod)
+}
+
+func (me *Parser) ParseValue() bool {
+	return me.Consume(AstTypeValue, TokenString, TokenNumber, TokenSymbol)
+}
+
+func (me *Parser) ParseWord() bool {
+	return me.Consume(AstTypeWord, TokenWord)
+}
+
+func (me *Parser) ParseWordValue() bool {
+	me.NewAstChildDescend(AstTypeWordValue)
+	res := me.ParseValue() || me.ParseWord()
+	me.AstAscend(res)
+	return res
+}
+
+func (me *Parser) ParseParameter() bool {
+	me.NewAstChildDescend(AstTypeParameter)
+	res := me.ParseWordValue() || me.ParseBlock()
+	me.AstAscend(res)
+	return res
+}
+
+func (me *Parser) ParseParametersNonempty() bool {
+	res := false
+	for me.ParseParameter() {
+		res = true
+	}
+	return res
+}
+
+func (me *Parser) ParseParameters() bool {
+	me.NewAstChildDescend(AstTypeParameters)
+	_ = me.ParseParametersNonempty()
+	me.AstAscend(true)
+	return true
+}
+
+func (me *Parser) ParseWordCall() bool {
+	me.NewAstChildDescend(AstTypeWordCall)
+	res := me.ParseParameters() && me.ParseEOX()
+	me.AstAscend(res)
+	return res
+}
+
+func (me *Parser) ParseOperator() bool {
+	return me.Consume(AstTypeOperator, TokenOperator)
+}
+
+func (me *Parser) ParseOperation() bool {
+	me.NewAstChildDescend(AstTypeOperation)
+	res := me.ParseOperator() && me.ParseParametersNonempty()
+	me.AstAscend(res)
+	return res
+}
+
+func (me *Parser) ParseOperations() bool {
+	me.NewAstChildDescend(AstTypeOperations)
+	res := me.ParseOperation()
+	for me.ParseOperation() {
+	}
+	me.AstAscend(res)
+	return res
+}
+
+func (me *Parser) ParseWordCallOp() bool {
+	me.NewAstChildDescend(AstTypeWordCallop)
+	res := me.ParseWordCall() || me.ParseOperations()
+	me.AstAscend(res)
+	return res
+}
+
+func (me *Parser) ParseWordExpression() bool {
+	me.NewAstChildDescend(AstTypeWordExpression)
+	res := me.ParseWord() && me.ParseWordCallOp()
+	me.AstAscend(res)
+	return res
+}
+
+func (me *Parser) ParseValueCall() bool {
+	me.NewAstChildDescend(AstTypeValueCall)
+	res := me.ParseParameters() && me.ParseEOX()
+	me.AstAscend(res)
+	return res
+}
+
+func (me *Parser) ParseValueCallOp() bool {
+	me.NewAstChildDescend(AstTypeValueCallop)
+	res := me.ParseValueCall() || me.ParseOperations()
+	me.AstAscend(res)
+	return res
+}
+
+func (me *Parser) ParseValueExpression() bool {
+	me.NewAstChildDescend(AstTypeValueExpression)
+	res := me.ParseValue() && me.ParseValueCallOp()
+	me.AstAscend(res)
+	return false
+}
+
+func (me *Parser) NewAstChild(tyty AstType) *Ast {
+	return me.now.NewChild(tyty, me.lookahead)
+}
+
+func (me *Parser) NewAstChildDescend(tyty AstType) {
+	node := me.NewAstChild(tyty)
+	me.now = node
+}
+
+func (me *Parser) AstAscend(keep bool) {
+	if me.now.Parent() != nil {
+		now := me.now
+		me.now = now.Parent().(*Ast)
+		if !keep {
+			now.Remove()
+		}
+	}
+}
+
+func (me TokenType) CloseForOpen() (TokenType, bool) {
+	switch me {
+	case TokenOpenBrace:
+		return TokenCloseBrace, true
+	case TokenOpenBracket:
+		return TokenCloseBracket, true
+	case TokenOpenParen:
+		return TokenCloseParen, true
+	case TokenKeywordDo:
+		return TokenKeywordEnd, true
+	default:
+		return TokenError, false
+	}
+
+}
+
+func (me *Parser) ParseBlock() bool {
+	me.Advance()
+	open := me.LookaheadType()
+	done, ok := open.CloseForOpen()
+	if !ok {
+		/* Not an opening of a block, so no block found. */
+		return false
+	}
+	me.DropLookahead()
+	me.NewAstChildDescend(AstTypeBlock)
+	res := me.ParseStatements()
+	me.AstAscend(res)
+	if res {
+		me.Advance()
+		if me.LookaheadType() != done {
+			return me.ParseError()
+		}
+		me.DropLookahead()
+	}
+	return res
+}
+
+func (me *Parser) ParseWords() bool {
+	me.NewAstChildDescend(AstTypeWords)
+	res := me.ParseWord()
+	for me.ParseWord() {
+	}
+	me.AstAscend(res)
+	return res
+}
+
+func (me *Parser) ParseDefinition() bool {
+	me.Advance()
+	res := me.Consume(AstTypeDefinition, TokenKeywordTo)
+	if !res {
+		return false
+	}
+	res = res && me.ParseWords()
+	if !res {
+		_ = me.ParseError()
+	}
+	res = res && me.ParseBlock()
+	if !res {
+		_ = me.ParseError()
+	}
+	me.AstAscend(true)
+	return res
+}
+
+func (me *Parser) ParseError() bool {
+	me.now.NewChild(AstTypeError, me.lookahead)
+	fmt.Printf("Parse error: at %s\n", me.lookahead)
+	return false
+}
+
+func (me *Parser) ParseExpression() bool {
+	return me.ParseWordExpression() || me.ParseValueExpression()
+}
+
+func (me *Parser) ParseStatement() bool {
+
+	me.NewAstChildDescend(AstTypeStatement)
+	/* First case is for an empty expression/statement. */
+	res := me.ParseEOX() || me.ParseDefinition() || me.ParseExpression() || me.ParseBlock()
+	me.AstAscend(res)
+	return res
+}
+
+func (me *Parser) ParseEOF() bool {
+	return me.Consume(AstTypeEox, TokenEOF)
+}
+
+func (me *Parser) ParseStatements() bool {
+	me.NewAstChildDescend(AstTypeStatements)
+	res := me.ParseStatement()
+
+	for me.ParseStatement() {
+	}
+
+	me.AstAscend(res)
+	return res
+}
+
+func (me *Parser) ParseProgram() bool {
+	return me.ParseStatements() && me.ParseEOF()
+}
+
+func NewParserForLexer(lexer *Lexer) *Parser {
+	me := &Parser{}
+	me.Ast = NewAst(AstTypeProgram)
+	me.now = me.Ast
+	me.Lexer = lexer
+	me.Ast.Token = &Token{}
+	go me.Lexer.Start()
+	return me
+}
+
+func NewParserForText(text string) *Parser {
+	lexer := OpenLexer(strings.NewReader(text))
+	return NewParserForLexer(lexer)
+}
+
+func (me *Ast) DotID() string {
+	return fmt.Sprintf("ast_%p", me)
+}
+
+func (me *Ast) Dotty() {
+	g := graphviz.NewDigraph("rankdir", "LR")
+	me.Walk(func(ast *Ast) *Ast {
+		label := ast.AstType.String()
+		if ast.Token != nil {
+			label = label + "\n" + ast.Token.String()
+		}
+		g.AddNode(ast.DotID(), "label", label)
+		if ast.Parent() != nil {
+			g.AddEdgeByName(ast.Parent().(*Ast).DotID(), ast.DotID())
+		}
+		return nil
+	})
+	g.Dotty()
 }
 
 /*
@@ -525,15 +982,14 @@ WORDS -> word WORDS | .
 EXPRESSION -> WORD_EXPRESSION | VALUE_EXPRESSION.
 WORD_EXPRESSION -> word WORD_CALLOP.
 WORD_CALLOP -> WORD_OPERATION | WORD_CALL.
-WORD_OPERATION -> operator PARAMETERS_NONEMPTY EOX.
+OPERATION -> operator PARAMETERS_NONEMPTY EOX.
 WORD_CALL -> PARAMETERS EOX.
 VALUE_EXPRESSION -> value VALUE_CALLOP.
 VALUE_CALLOP -> VALUE_OPERATION | VALUE_CALL.
-VALUE_OPERATION -> operator PARAMETERS_NONEMPTY EOX.
 VALUE_CALL -> EOX.
 PARAMETERS_NONEMPTY -> PARAMETER PARAMETERS.
 PARAMETERS -> PARAMETERS_NONEMPTY | .
-PARAMETER -> BLOCK | WORDVALUE .
+PARAMETER -> BLOCK | WORDVALUE | OPERATION.
 BLOCK -> ob STATEMENTS cb | op STATEMENTS cp | oa STATEMENTS ca | do STATEMENTS end.
 WORDVALUE -> word | VALUE.
 VALUE -> string | number | symbol.
