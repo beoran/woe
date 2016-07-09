@@ -86,3 +86,22 @@ If you are interested in becoming a maintainer, we ask to please contact
 the current maintainer(s) to ask them how to achieve this. If so inclined, you 
 may also fork this project and become the maintainer of that fork 
 to develop it according to your own goals.
+
+## DISCLAIMER
+
+With this text, we hope to welcome you to this project, however, it is merely 
+intent to inform you of how we wish to run this project. This text DOES NOT 
+create a legally binding relationship between the maintainers(s) 
+and contributors of this project and yourself, not even an implicit one.
+
+THIS WELCOME.md TEXT PROVIDED BY THE MAINTAINER(S) AND CONTRIBUTOR(S) OF THIS PROJECT 
+``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, 
+THE IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, 
+OR NON-INFRINGEMENT, ARE DISCLAIMED. IN NO EVENT SHALL THE MAINTAINER(S) AND 
+CONTRIBUTOR(S) of this PROJECT BE LIABLE FOR ANY DIRECT, INDIRECT,
+INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT 
+LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, 
+OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF 
+LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE 
+OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS WELCOME.md text, EVEN IF 
+ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
