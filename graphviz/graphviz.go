@@ -156,10 +156,10 @@ func (me *Digraph) Dotty() error {
 	cmd := exec.Command("dotty", name)
 	cmd.Stderr = os.Stderr
 	cmd.Stdout = os.Stdout
-	err = cmd.Run()
+	err = cmd.Start()
 	if err != nil {
 		return err
 	}
-	cmd.Wait()
+	// cmd.Wait()
 	return nil
 }

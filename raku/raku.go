@@ -2,28 +2,20 @@
 
 /* Raku is an easy to use scripting language that can also be used easily interactively
 
-Syntax (verified LL(1) on smlweb.cpsc.ucalgary.ca)
+Desrired syntax (verified LL(1) on smlweb.cpsc.ucalgary.ca)
 
 PROGRAM -> STATEMENTS.
 STATEMENTS -> STATEMENT STATEMENTS | .
-STATEMENT -> DEFINITION | EXPRESSION | BLOCK .
-DEFINITION -> to WORDS BLOCK.
+STATEMENT -> EXPRESSION EOX  | DEFINITION | BLOCK | EOX .
+DEFINITION -> define WORDS BLOCK.
 WORDS -> word WORDS | .
-EXPRESSION -> WORD_EXPRESSION | VALUE_EXPRESSION.
-WORD_EXPRESSION -> word WORD_CALLOP.
-WORD_CALLOP -> WORD_OPERATION | WORD_CALL.
-WORD_OPERATION -> operator PARAMETERS_NONEMPTY EOX.
-WORD_CALL -> PARAMETERS EOX.
-VALUE_EXPRESSION -> value VALUE_CALLOP.
-VALUE_CALLOP -> VALUE_OPERATION | VALUE_CALL.
-VALUE_OPERATION -> operator PARAMETERS_NONEMPTY EOX.
-VALUE_CALL -> EOX.
-PARAMETERS_NONEMPTY -> PARAMETER PARAMETERS.
-PARAMETERS -> PARAMETERS_NONEMPTY | .
-PARAMETER -> BLOCK | WORDVALUE .
-BLOCK -> ob STATEMENTS cb | op STATEMENTS cp | oa STATEMENTS ca | do
-STATEMENTS end.
-WORDVALUE -> word | VALUE.
+EXPRESSION -> WORDVALUE MODIFIERS.
+MODIFIERS -> MODIFIER MODIFIERS | .
+OPERATION ->  operator MODIFIER .
+MODIFIER -> OPERATION | WORDVALUE | PARENTHESIS | BLOCK.
+PARENTHESIS -> '(' EXPRESSION ')' | ot EXPRESSION ct.
+BLOCK -> oe STATEMENTS ce | do STATEMENTS end .
+WORDVALUE -> word | VALUE | a | the.
 VALUE -> string | number | symbol.
 EOX -> eol | period.
 
@@ -112,6 +104,7 @@ var tokenTypeMap map[TokenType]string = map[TokenType]string{
 
 var keywordMap map[string]TokenType = map[string]TokenType{
 	"a":   TokenKeywordA,
+	"an":  TokenKeywordA,
 	"do":  TokenKeywordDo,
 	"end": TokenKeywordEnd,
 	"the": TokenKeywordThe,
@@ -496,10 +489,9 @@ const (
 	AstTypeWordCallop
 	AstTypeOperation
 	AstTypeOperations
-	AstTypeWordCall
+	AstTypeCallArgs
 	AstTypeValueExpression
 	AstTypeValueCallop
-	AstTypeValueCall
 	AstTypeParametersNonempty
 	AstTypeParameters
 	AstTypeParameter
@@ -523,10 +515,9 @@ var astTypeMap map[AstType]string = map[AstType]string{
 	AstTypeWordCallop:         "AstTypeWordCallop",
 	AstTypeOperation:          "AstTypeOperation",
 	AstTypeOperations:         "AstTypeOperations",
-	AstTypeWordCall:           "AstTypeWordCall",
+	AstTypeCallArgs:           "AstTypeCallArgs",
 	AstTypeValueExpression:    "AstTypeValueExpression",
 	AstTypeValueCallop:        "AstTypeValueCallop",
-	AstTypeValueCall:          "AstTypeValueCall",
 	AstTypeParametersNonempty: "AstTypeParametersNonempty",
 	AstTypeParameters:         "AstTypeParameters",
 	AstTypeParameter:          "AstTypeParameter",
@@ -700,6 +691,15 @@ func (me *Parser) Consume(atyp AstType, types ...TokenType) bool {
 	return res
 }
 
+func (me *Parser) ConsumeWithoutAst(types ...TokenType) bool {
+	me.Advance()
+	res := me.Expect(types...)
+	if res {
+		me.DropLookahead()
+	}
+	return res
+}
+
 /*
 func (me * Parser) OneOf(restype AstType, options ...Parsable) bool {
 	res := false
@@ -714,7 +714,7 @@ func (me * Parser) OneOf(restype AstType, options ...Parsable) bool {
 */
 
 func (me *Parser) ParseEOX() bool {
-	return me.Consume(AstTypeEox, TokenEOL, TokenPeriod)
+	return me.ConsumeWithoutAst(TokenEOL, TokenPeriod)
 }
 
 func (me *Parser) ParseValue() bool {
@@ -722,7 +722,7 @@ func (me *Parser) ParseValue() bool {
 }
 
 func (me *Parser) ParseWord() bool {
-	return me.Consume(AstTypeWord, TokenWord)
+	return me.Consume(AstTypeWord, TokenWord, TokenKeywordA, TokenKeywordThe)
 }
 
 func (me *Parser) ParseWordValue() bool {
@@ -754,8 +754,8 @@ func (me *Parser) ParseParameters() bool {
 	return true
 }
 
-func (me *Parser) ParseWordCall() bool {
-	me.NewAstChildDescend(AstTypeWordCall)
+func (me *Parser) ParseCallArgs() bool {
+	me.NewAstChildDescend(AstTypeCallArgs)
 	res := me.ParseParameters() && me.ParseEOX()
 	me.AstAscend(res)
 	return res
@@ -767,7 +767,7 @@ func (me *Parser) ParseOperator() bool {
 
 func (me *Parser) ParseOperation() bool {
 	me.NewAstChildDescend(AstTypeOperation)
-	res := me.ParseOperator() && me.ParseParametersNonempty()
+	res := me.ParseOperator() && me.ParseParameter()
 	me.AstAscend(res)
 	return res
 }
@@ -783,7 +783,7 @@ func (me *Parser) ParseOperations() bool {
 
 func (me *Parser) ParseWordCallOp() bool {
 	me.NewAstChildDescend(AstTypeWordCallop)
-	res := me.ParseWordCall() || me.ParseOperations()
+	res := me.ParseCallArgs() || me.ParseOperations()
 	me.AstAscend(res)
 	return res
 }
@@ -795,16 +795,9 @@ func (me *Parser) ParseWordExpression() bool {
 	return res
 }
 
-func (me *Parser) ParseValueCall() bool {
-	me.NewAstChildDescend(AstTypeValueCall)
-	res := me.ParseParameters() && me.ParseEOX()
-	me.AstAscend(res)
-	return res
-}
-
 func (me *Parser) ParseValueCallOp() bool {
 	me.NewAstChildDescend(AstTypeValueCallop)
-	res := me.ParseValueCall() || me.ParseOperations()
+	res := me.ParseCallArgs() || me.ParseOperations()
 	me.AstAscend(res)
 	return res
 }

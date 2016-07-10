@@ -157,10 +157,24 @@ func TestParseblock(test *testing.T) {
 	const input = `[
 say "hello"
 say "world"
+let i be 3 + 4
+let j be 7 + 5
+let ij be i * j
+return ij
 ]
 `
 	parser := NewParserForText(input)
 	Assert(test, parser.ParseBlock(), "Could not parse block.")
+	tree.Display(parser.Ast)
+	// parser.Ast.Dotty()
+}
+
+func TestParseProgram3(test *testing.T) {
+	// monolog.Setup("raku_test.log", true, false)
+	const input = `let foo be set equal = 3 + 4 bar
+`
+	parser := NewParserForText(input)
+	Assert(test, parser.ParseProgram(), "Could not parse program.")
 	tree.Display(parser.Ast)
 	parser.Ast.Dotty()
 }
