@@ -2,69 +2,74 @@
 
 ## Welcome
 
-Everybody involved in this project would like welcome you and thank you for your 
-interest in it. This project is brought to you with the hope that it will be 
-useful to you, but without any warranty whatsoever. Please read the LICENSE 
-for more details about this.
+We, the maintainer(s) and/or contributor(s), of this FLOSS project, welcome you 
+and thank you for your interest in it. This project is brought to you with the 
+hope that it will be useful to you, but without any warranty whatsoever. Please 
+read the LICENSE  for more details about this.
 
-If you, in turn, like this project, and would like to help out, then 
-we would like to welcome you to this project as a contributor. There are several 
-ways in which you can contribute. Contributions can consist of source code, 
-patches, but also bug reports, documentation, suggestions, artwork, or 
-other relevant material. 
+We welcome and appreciate contributions from everybody. By contributions we mean 
+code, documentation, art work, project outreach in form of setting up 
+conferences or working groups, package maintenance, answering and asking 
+questions in our forums, providing bug reports, or any other other material 
+or work to advance the goals of this project.  If you contribute to our project, 
+then we will do our best to seriously consider your opinions and concerns. 
 
-Everyone involved in this project would like you know that no matter who you are, 
-no matter where you are from, no matter what your opinions or ideas are, 
-we welcome your contributions to this project as long as they are in line with 
-the project's goals.
+No matter who you are, no matter where you are from, and no matter your opinions 
+on any topic, we will welcome your contributions to this project as long as they 
+are compatible with the project's goals and license. The goals of this project 
+are described in a GOALS file, or in other design documents specified by the 
+maintainer(s). 
 
-It is impossible to describe all the goals of this project here,  
-but said in short, for this project the main goals are:  
-
-1. Implement a MUD base in go language, which is ideal for server applications and easer than C to modify.
-2. Implement a MUD base with a license that unlike DIKU and it's descendents, allows it be used for pay-for-play MUDS.  
-3. Implement the game of Workers of Eruta, wich is related to the Eruta game and world. 
-4. WOE is a game by adults for adults, with some tastefully done adult contents. Less gore and teenage jokes than DIKU, more love.
-5. Make a game that is accessibe to the blind and other people with visual problems.
-6. Have fun while implementing WOE.
-7. Keep the code reasonably clean, but don't care about pedantry such as golint...
-
+If you are new to this project, even if you lack experience, we would like to 
+encourage you to participate. But, you will need to invest some time and effort 
+yourself to get to know the project, to learn it's goals and to learn how to 
+make a useful contribution.
 
 ## How to participate in this project
 
-Everyone involved in this project would like to welcome you to the virtual 
-spaces associated to this project. To make sure this project remains 
-a project that welcomes contributors, we would like to ask of you
-to follow the following rules in the project's virtual spaces when contributing:
+We want everyone entering our community willing to help out to feel welcomed.
+To maintain and encourage a welcoming environment we ask of everyone
+involved in the project to follow these general guidelines:
+ 
+1. Everyone should try to stay on topic. Please refrain from posting SPAM, 
+trolling, irrelevant discussions,  other off topic material.
 
-1. Stay on topic. Refrain from posting SPAM, trolling, irrelevant discussions, ...
-2. Obey the law. Refrain from death threats, harassment, theft, ... 
-3. Behave like an adult. Refrain from personal attacks, dog piling, bullying...
+2. Everyone should try to behave like a reasonable adult. Please refrain 
+from personal attacks, dog piling, bullying or other similar activities.
 
-Any participation that is not in line with these rules may be removed or locked
-on a best effort basis by the maintainer(s). If you maliciously or repeatedly 
-keep on disregarding these rules when participating, you may be temporarily 
-or permanently banned from contributing to the project. This decision is made 
-on a best effort basis by the maintainer(s). 
+3. Keep the project goals in mind. Please refrain from demands to change the 
+goals if you are not a maintainer. 
 
-Naturally, these rules only apply within the context of the project. 
-Your behavior outside of the project's virtual spaces will always be ignored. 
-It cannot be used as a pretext to block your contributions or ban you from 
-contributing. Like this we want to be welcoming to you even if you have 
-unpopular opinions or made some mistakes in the past.
+When the project maintainer(s) consider it necessary, any contribution or 
+participation in the project that violates these guidelines may be removed or 
+edited. At the discretion of the maintainer(s), someone who maliciously or, 
+after having been warned repeatedly, keeps on disregarding these guidelines, 
+may be temporarily or permanently banned from contributing to the project.
+
+Naturally, these guidelines only apply within the context of the project.
+It is not our role to judge your behavior that is not directly related to 
+the project. The maintainer(s) of this project will not apply any 
+in project sanction on the pretext of your unrelated behavior. 
+We do this because would like to welcome anyone, even people with unpopular 
+opinions.
+
+The maintainer(s) of this project will do their best to follow these guidelines 
+themselves also, but since they rightfully own the project, they cannot be 
+banned. 
+
+These guidelines are in no way a substitute for the laws of your country, which 
+you should already obey anyway.
 
 ## What to do in case of problems
 
-If you feel that you are being treated unfairly, that your contribution is not 
-being evaluated fairly, or if someone does not follow the rules mentioned above, 
-contact the maintainer(s) of this project by posting an issue about it on the 
-github issue tracker (sorry, too much spam in my e-mail). We will do our best 
-to remedy the situation. Please keep in mind that many FLOSS projects are run 
-by volunteers, so we do not always have the resources to answer you immediately.
+If you feel that you or your contribution are not being treated fairly, 
+if you feel concerned about your personal safety, or if someone is engaged in 
+illegal behavior, contact the maintainer(s) of this project at <contact >.  
+We will do our best to remedy the situation and respect your privacy.
 
 ## How to contribute 
 
-When you make a contribution the maintainer(s) of this project or someone 
+When you want make a contribution the maintainer(s) of this project or someone 
 appointed by them will perform a review. We would like to let you know that we 
 will do our best to review your contributions fairly, and only take into 
 consideration relevant factors, such as compatibility with the goals of the 
@@ -89,19 +94,24 @@ to develop it according to your own goals.
 
 ## DISCLAIMER
 
-With this text, we hope to welcome you to this project, however, it is merely 
-intent to inform you of how we wish to run this project. This text DOES NOT 
-create a legally binding relationship between the maintainers(s) 
-and contributors of this project and yourself, not even an implicit one.
+With this text, we hope to welcome you to this project, however, it is merely
+a statement of intent to inform you of how we wish to run this project. 
+It is in no way legally binding for anyone involved in the project. 
+This FLOSS project run by volunteers, so we do not always have the resources to 
+answer youor to help you in case of problems. We can only implement this 
+statement of intent on a best effort basis. We cannot guarantee that we will be 
+able to uphold the guidleines set out in this text. Therefore, your 
+participation to this project is subject to the following disclaimer:
 
-THIS WELCOME.md TEXT PROVIDED BY THE MAINTAINER(S) AND CONTRIBUTOR(S) OF THIS PROJECT 
-``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, 
-THE IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, 
-OR NON-INFRINGEMENT, ARE DISCLAIMED. IN NO EVENT SHALL THE MAINTAINER(S) AND 
-CONTRIBUTOR(S) of this PROJECT BE LIABLE FOR ANY DIRECT, INDIRECT,
-INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT 
-LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, 
-OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF 
-LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE 
-OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS WELCOME.md text, EVEN IF 
-ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+YOUR PARTICIPATION IN THIS PROJECT IS AT YOUR OWN RISK. ANY EXPRESS OR IMPLIED 
+WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF 
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, OR NON-INFRINGEMENT, 
+ARE DISCLAIMED. IN NO EVENT SHALL THE MAINTAINER(S) AND CONTRIBUTOR(S) OF THIS 
+PROJECT BE LIABLE FOR ANY DIRECT, INDIRECT INCIDENTAL, SPECIAL, EXEMPLARY, 
+OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, LOSS OF GOODWILL,
+PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; 
+OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER
+IN  CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGECE OR OTHERWISE) 
+ARISING IN ANY WAY OUT OF YOUR PARTICIPATION IN THIS PROJECT, YOUR FAILURE, 
+OR YOUR BEING REJECTED FROM PARTICIPATION IT, EVEN IF ADVISED OF THE POSSIBILITY 
+OF SUCH DAMAGE. 
