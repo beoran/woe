@@ -98,7 +98,7 @@ With this text, we hope to welcome you to this project, however, it is merely
 a statement of intent to inform you of how we wish to run this project. 
 It is in no way legally binding for anyone involved in the project. 
 This FLOSS project run by volunteers, so we do not always have the resources to 
-answer youor to help you in case of problems. We can only implement this 
+answer you or to help you in case of problems. We can only implement this 
 statement of intent on a best effort basis. We cannot guarantee that we will be 
 able to uphold the guidleines set out in this text. Therefore, your 
 participation to this project is subject to the following disclaimer:
