@@ -74,7 +74,7 @@ const (
 	TokenKeywordDo    TokenType = -11
 	TokenKeywordEnd   TokenType = -12
 	TokenKeywordThe   TokenType = -13
-	TokenKeywordTo    TokenType = -14
+	TokenKeywordDef   TokenType = -14
 	TokenLastKeyword  TokenType = -15
 	TokenLast         TokenType = -15
 )
@@ -99,16 +99,17 @@ var tokenTypeMap map[TokenType]string = map[TokenType]string{
 	TokenKeywordDo:  "TokenKeywordDo",
 	TokenKeywordEnd: "TokenKeywordEnd",
 	TokenKeywordThe: "TokenKeywordThe",
-	TokenKeywordTo:  "TokenKeywordTo",
+	TokenKeywordDef: "TokenKeywordDef",
 }
 
 var keywordMap map[string]TokenType = map[string]TokenType{
-	"a":   TokenKeywordA,
-	"an":  TokenKeywordA,
-	"do":  TokenKeywordDo,
-	"end": TokenKeywordEnd,
-	"the": TokenKeywordThe,
-	"to":  TokenKeywordTo,
+	"a":      TokenKeywordA,
+	"an":     TokenKeywordA,
+	"do":     TokenKeywordDo,
+	"def":    TokenKeywordDef,
+	"define": TokenKeywordDef,
+	"end":    TokenKeywordEnd,
+	"the":    TokenKeywordThe,
 }
 
 var sigilMap map[string]TokenType = map[string]TokenType{
@@ -193,8 +194,15 @@ func LookupSigil(sigil string) (bool, TokenType) {
 	return found, kind
 }
 
+func LexSigil(me *Lexer) LexerRule {
+	me.Found(TokenType(me.Peek()))
+	_ = me.Next()
+	me.Advance()
+	return LexNormal
+}
+
 func LexWord(me *Lexer) LexerRule {
-	me.SkipNotIn(" \t\r\n'")
+	me.SkipNotIn(" \t\r\n'({[]})")
 
 	iskw, kind := LookupKeyword(me.CurrentStringValue())
 	if iskw {
@@ -206,13 +214,13 @@ func LexWord(me *Lexer) LexerRule {
 }
 
 func LexSymbol(me *Lexer) LexerRule {
-	me.SkipNotIn(" \t\r\n'")
+	me.SkipNotIn(" \t\r\n'({[]})")
 	me.Found(TokenSymbol)
 	return LexNormal
 }
 
 func LexNumber(me *Lexer) LexerRule {
-	me.SkipNotIn(" \tBBBT\r\n")
+	me.SkipNotIn(" \t\r\n'({[]})")
 	me.Found(TokenNumber)
 	return LexNormal
 }
@@ -233,7 +241,8 @@ func LexComment(me *Lexer) LexerRule {
 }
 
 func LexPunctuator(me *Lexer) LexerRule {
-	me.Found(TokenType(me.Peek()))
+	me.Found(TokenType(me.Next()))
+	me.Advance()
 	return LexNormal
 }
 
@@ -244,7 +253,7 @@ func LexEOL(me *Lexer) LexerRule {
 }
 
 func LexOperator(me *Lexer) LexerRule {
-	me.SkipNotIn(" \t\r\n")
+	me.SkipNotIn(" \t\r\n({[]})")
 	issig, kind := LookupSigil(me.CurrentStringValue())
 	if issig {
 		me.Found(kind)
@@ -297,6 +306,8 @@ func LexNormal(me *Lexer) LexerRule {
 		return LexWhitespace
 	} else if strings.ContainsRune(".,;:", peek) {
 		return LexPunctuator
+	} else if strings.ContainsRune("([{}])", peek) {
+		return LexSigil
 	} else if strings.ContainsRune("$", peek) {
 		return LexSymbol
 	} else if strings.ContainsRune("\r\n", peek) {
@@ -501,6 +512,8 @@ const (
 	AstTypeValue
 	AstTypeEox
 	AstTypeOperator
+	AstTypeParenthesis
+	AstTypeModifier
 	AstTypeError
 )
 
@@ -527,6 +540,8 @@ var astTypeMap map[AstType]string = map[AstType]string{
 	AstTypeValue:              "AstTypeValue",
 	AstTypeEox:                "AstTypeEox",
 	AstTypeOperator:           "AstTypeOperator",
+	AstTypeParenthesis:        "AstTypeParenthesis",
+	AstTypeModifier:           "AstTypeModifier",
 	AstTypeError:              "AstTypeError",
 }
 
@@ -636,14 +651,14 @@ func (me *Parser) SetupRules() {
 }
 
 func (me *Parser) Expect(types ...TokenType) bool {
-	fmt.Print("Expecting: ", types, " from ", me.now.AstType, " have ", me.LookaheadType(), " \n")
+	monolog.Debug("Expecting: ", types, " from ", me.now.AstType, " have ", me.LookaheadType(), " \n")
 	for _, t := range types {
 		if me.LookaheadType() == t {
-			fmt.Print("Found: ", t, "\n")
+			monolog.Debug("Found: ", t, "\n")
 			return true
 		}
 	}
-	fmt.Print("Not found.\n")
+	monolog.Debug("Not found.\n")
 	return false
 }
 
@@ -765,12 +780,14 @@ func (me *Parser) ParseOperator() bool {
 	return me.Consume(AstTypeOperator, TokenOperator)
 }
 
+/*
 func (me *Parser) ParseOperation() bool {
 	me.NewAstChildDescend(AstTypeOperation)
 	res := me.ParseOperator() && me.ParseParameter()
 	me.AstAscend(res)
 	return res
 }
+*/
 
 func (me *Parser) ParseOperations() bool {
 	me.NewAstChildDescend(AstTypeOperations)
@@ -828,16 +845,24 @@ func (me *Parser) AstAscend(keep bool) {
 	}
 }
 
-func (me TokenType) CloseForOpen() (TokenType, bool) {
+func (me TokenType) BlockCloseForOpen() (TokenType, bool) {
 	switch me {
 	case TokenOpenBrace:
 		return TokenCloseBrace, true
+	case TokenOpenParen:
+		return TokenCloseParen, true
+	default:
+		return TokenError, false
+	}
+
+}
+
+func (me TokenType) ParenthesisCloseForOpen() (TokenType, bool) {
+	switch me {
 	case TokenOpenBracket:
 		return TokenCloseBracket, true
 	case TokenOpenParen:
 		return TokenCloseParen, true
-	case TokenKeywordDo:
-		return TokenKeywordEnd, true
 	default:
 		return TokenError, false
 	}
@@ -847,7 +872,7 @@ func (me TokenType) CloseForOpen() (TokenType, bool) {
 func (me *Parser) ParseBlock() bool {
 	me.Advance()
 	open := me.LookaheadType()
-	done, ok := open.CloseForOpen()
+	done, ok := open.BlockCloseForOpen()
 	if !ok {
 		/* Not an opening of a block, so no block found. */
 		return false
@@ -855,6 +880,28 @@ func (me *Parser) ParseBlock() bool {
 	me.DropLookahead()
 	me.NewAstChildDescend(AstTypeBlock)
 	res := me.ParseStatements()
+	me.AstAscend(res)
+	if res {
+		me.Advance()
+		if me.LookaheadType() != done {
+			return me.ParseError()
+		}
+		me.DropLookahead()
+	}
+	return res
+}
+
+func (me *Parser) ParseParenthesis() bool {
+	me.Advance()
+	open := me.LookaheadType()
+	done, ok := open.ParenthesisCloseForOpen()
+	if !ok {
+		/* Not an opening of a parenthesis, so no parenthesis found. */
+		return false
+	}
+	me.DropLookahead()
+	me.NewAstChildDescend(AstTypeParenthesis)
+	res := me.ParseExpression()
 	me.AstAscend(res)
 	if res {
 		me.Advance()
@@ -877,7 +924,7 @@ func (me *Parser) ParseWords() bool {
 
 func (me *Parser) ParseDefinition() bool {
 	me.Advance()
-	res := me.Consume(AstTypeDefinition, TokenKeywordTo)
+	res := me.Consume(AstTypeDefinition, TokenKeywordDef)
 	if !res {
 		return false
 	}
@@ -893,6 +940,27 @@ func (me *Parser) ParseDefinition() bool {
 	return res
 }
 
+func (me *Parser) ParseOperation() bool {
+	me.NewAstChildDescend(AstTypeOperation)
+	res := me.ParseOperator() && me.ParseModifier()
+	me.AstAscend(res)
+	return res
+}
+
+func (me *Parser) ParseModifier() bool {
+	me.NewAstChildDescend(AstTypeModifier)
+	res := me.ParseOperation() || me.ParseWordValue() ||
+		me.ParseParenthesis() || me.ParseBlock()
+	me.AstAscend(res)
+	return res
+}
+
+func (me *Parser) ParseModifiers() bool {
+	for me.ParseModifier() {
+	}
+	return true
+}
+
 func (me *Parser) ParseError() bool {
 	me.now.NewChild(AstTypeError, me.lookahead)
 	fmt.Printf("Parse error: at %s\n", me.lookahead)
@@ -900,14 +968,17 @@ func (me *Parser) ParseError() bool {
 }
 
 func (me *Parser) ParseExpression() bool {
-	return me.ParseWordExpression() || me.ParseValueExpression()
+	return me.ParseWordValue() && me.ParseModifiers()
 }
 
 func (me *Parser) ParseStatement() bool {
-
 	me.NewAstChildDescend(AstTypeStatement)
 	/* First case is for an empty expression/statement. */
-	res := me.ParseEOX() || me.ParseDefinition() || me.ParseExpression() || me.ParseBlock()
+	res := me.ParseEOX() ||
+		me.ParseDefinition() ||
+		(me.ParseExpression() && me.ParseEOX()) ||
+		me.ParseBlock()
+
 	me.AstAscend(res)
 	return res
 }
@@ -967,35 +1038,72 @@ func (me *Ast) Dotty() {
 }
 
 /*
-	PROGRAM -> STATEMENTS.
+
+PROGRAM -> STATEMENTS.
 STATEMENTS -> STATEMENT STATEMENTS | .
-STATEMENT -> DEFINITION | EXPRESSION | BLOCK .
-DEFINITION -> to WORDS BLOCK.
+STATEMENT -> EXPRESSION EOX  | DEFINITION | BLOCK | EOX .
+DEFINITION -> define WORDS BLOCK.
 WORDS -> word WORDS | .
-EXPRESSION -> WORD_EXPRESSION | VALUE_EXPRESSION.
-WORD_EXPRESSION -> word WORD_CALLOP.
-WORD_CALLOP -> WORD_OPERATION | WORD_CALL.
-OPERATION -> operator PARAMETERS_NONEMPTY EOX.
-WORD_CALL -> PARAMETERS EOX.
-VALUE_EXPRESSION -> value VALUE_CALLOP.
-VALUE_CALLOP -> VALUE_OPERATION | VALUE_CALL.
-VALUE_CALL -> EOX.
-PARAMETERS_NONEMPTY -> PARAMETER PARAMETERS.
-PARAMETERS -> PARAMETERS_NONEMPTY | .
-PARAMETER -> BLOCK | WORDVALUE | OPERATION.
-BLOCK -> ob STATEMENTS cb | op STATEMENTS cp | oa STATEMENTS ca | do STATEMENTS end.
-WORDVALUE -> word | VALUE.
+EXPRESSION -> WORDVALUE MODIFIERS.
+MODIFIERS -> MODIFIER MODIFIERS | .
+OPERATION ->  operator MODIFIER .
+MODIFIER -> OPERATION | WORDVALUE | PARENTHESIS | BLOCK.
+PARENTHESIS -> '(' EXPRESSION ')' | ot EXPRESSION ct.
+BLOCK -> oe STATEMENTS ce | do STATEMENTS end .
+WORDVALUE -> word | VALUE | a | the.
 VALUE -> string | number | symbol.
 EOX -> eol | period.
-
 
 	AstNodeBlock = AstNodeType(iota)
 )
 */
 
-type Environment struct {
-	Parent *Environment
+type DefineType int
+
+const (
+		DefineTypeNone = DefineType(iota),
+		DefineTypeGo,
+		DefineTypeUser,
+		DefineTypeVar,
+)
+
+type Value interface {
+	
 }
+
+type DefinePattern struct {
+	Parts []string
+}
+
+type GoDefineFunc func(runtime Runtime, args ... Value) Value;
+
+type UserDefine struct {
+	DefinePattern
+	* Ast	
+}
+
+type GoDefine struct {
+	DefinePattern
+	* GoDefineFunc
+}
+
+
+type Define struct {
+	DefineType
+	Ast * definition
+}
+
+type Environment struct {
+	Parent *Environment	
+}
+
+
+type Runtime struct {
+	Environment
+}
+
+
+
 
 func main() {
 	fmt.Println("Hello World!")

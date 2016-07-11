@@ -11,12 +11,30 @@ import (
 
 func HelperTryLexing(me *Lexer, test *testing.T) {
 	go me.Start()
+	me.Advance()
 	test.Logf("Lexing started:")
 	test.Logf("Lexer buffer: %v", me.buffer)
 
 	for token := range me.Output {
-		test.Logf("Token %s", token)
+		// test.Logf("Token %s", token)
+		_ = token
 	}
+}
+
+func LexAll(me *Lexer) []*Token {
+	res := make([]*Token, 0)
+	go me.Start()
+
+	for token := range me.Output {
+		res = append(res, token)
+	}
+	return res
+}
+
+func LexText(input string) []*Token {
+	lexer := OpenLexer(strings.NewReader(input))
+	tokens := LexAll(lexer)
+	return tokens
 }
 
 func Assert(test *testing.T, ok bool, text string) bool {
@@ -30,11 +48,11 @@ func TestLexing(test *testing.T) {
 	const input = `
 say "hello \"world\\"
 
-to open a door do
+define open a door do
 	set door's open to true
 end
 
-to increment variable by value do
+def increment variable by value do
 	variable = variable + value 
 end
 `
@@ -134,9 +152,9 @@ func TestParseProgram(test *testing.T) {
 }
 
 func TestParseProgram2(test *testing.T) {
-	const input = `to greet someone [
+	const input = `to greet someone  {
 say "hello" someone
-]
+}
 
 greet bob
 
@@ -154,14 +172,14 @@ end
 
 func TestParseblock(test *testing.T) {
 	// monolog.Setup("raku_test.log", true, false)
-	const input = `[
+	const input = `{
 say "hello"
 say "world"
 let i be 3 + 4
 let j be 7 + 5
 let ij be i * j
 return ij
-]
+}
 `
 	parser := NewParserForText(input)
 	Assert(test, parser.ParseBlock(), "Could not parse block.")
@@ -171,10 +189,38 @@ return ij
 
 func TestParseProgram3(test *testing.T) {
 	// monolog.Setup("raku_test.log", true, false)
-	const input = `let foo be set equal = 3 + 4 bar
+	const input = `set foo to (3 + 4)
 `
 	parser := NewParserForText(input)
 	Assert(test, parser.ParseProgram(), "Could not parse program.")
 	tree.Display(parser.Ast)
 	parser.Ast.Dotty()
+}
+
+func TestParseParenthesis(test *testing.T) {
+	// monolog.Setup("raku_test.log", true, false)
+	const input = `(3 + 4 * 5)`
+	parser := NewParserForText(input)
+	Assert(test, parser.ParseParenthesis(), "Could not parse parenthesis.")
+	tree.Display(parser.Ast)
+	parser.Ast.Dotty()
+}
+
+func LexingTest(test *testing.T, input string, expected ...TokenType) {
+	tokens := LexText(input)
+	if len(tokens) != len(expected) {
+		test.Errorf("Amount of tokens does not match expected amount: %d, should be %d", len(tokens), len(expected))
+	}
+	for index := 0; index < len(expected); index++ {
+		want := expected[index]
+		tok := tokens[index]
+		if tok.TokenType != want {
+			test.Errorf("Wrong token type recognized: %v, should be %s", tok, want)
+		}
+	}
+}
+
+func TestLexingParen(test *testing.T) {
+	LexingTest(test, "(", TokenOpenParen, TokenEOF)
+	LexingTest(test, "((", TokenOpenParen, TokenOpenParen, TokenEOF)
 }
